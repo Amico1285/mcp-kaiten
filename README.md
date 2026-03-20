@@ -1,5 +1,7 @@
 # mcp-kaiten
 
+[Русская версия](README.ru.md)
+
 MCP server for **Kaiten** — cards, time-logs, boards, comments, users.
 
 Connect Cursor, Claude Desktop, or any MCP client to your Kaiten workspace.
@@ -66,9 +68,9 @@ The server starts automatically when the MCP client connects.
 |------|-------------|
 | `kaiten_get_user_timelogs` | Get time-logs for a user in a date range |
 | `kaiten_get_card_timelogs` | Get time-logs for a card |
-| `kaiten_create_timelog` | Create a time-log entry |
+| `kaiten_create_timelog` | Create a time-log entry (requires `roleId`) |
 | `kaiten_update_timelog` | Update a time-log entry |
-| `kaiten_delete_timelog` | Delete a time-log entry |
+| `kaiten_delete_timelog` | Delete a time-log entry (requires `cardId`) |
 
 ### Spaces & Boards
 

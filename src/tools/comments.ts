@@ -4,13 +4,12 @@ import { get, post, patch, del } from "../client.js";
 import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
+import type { Obj } from "../utils/schemas.js";
 import {
   simplifyComment, simplifyList,
   verbositySchema,
   type Verbosity,
 } from "../utils/simplify.js";
-
-type Obj = Record<string, unknown>;
 
 export function registerCommentTools(
   server: McpServer,

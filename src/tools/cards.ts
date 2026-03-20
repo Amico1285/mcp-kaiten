@@ -6,7 +6,7 @@ import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
 import {
-  optionalInt, paginationSchema,
+  type Obj, optionalInt, paginationSchema,
   conditionSchema, buildOptionalBody,
   addOptionalParams,
 } from "../utils/schemas.js";
@@ -15,8 +15,6 @@ import {
   verbositySchema,
   type Verbosity,
 } from "../utils/simplify.js";
-
-type Obj = Record<string, unknown>;
 
 export function registerCardTools(
   server: McpServer,
@@ -146,39 +144,32 @@ export function registerCardTools(
         search_fields: "title",
       };
 
-      addOptionalParams(
-        q,
+      addOptionalParams(q, [
+        ["query", p.query],
+        ["board_id", p.boardId],
         [
-          ["query", p.query],
-          ["created_before", p.createdBefore],
-          ["created_after", p.createdAfter],
-          ["updated_before", p.updatedBefore],
-          ["updated_after", p.updatedAfter],
-          ["due_date_before", p.dueDateBefore],
-          ["due_date_after", p.dueDateAfter],
-          ["owner_ids", p.ownerIds],
-          ["member_ids", p.memberIds],
-          ["tag_ids", p.tagIds],
+          "space_id",
+          p.spaceId ?? getDefaultSpaceId(),
         ],
-        [
-          ["board_id", p.boardId],
-          [
-            "space_id",
-            p.spaceId ?? getDefaultSpaceId(),
-          ],
-          ["column_id", p.columnId],
-          ["lane_id", p.laneId],
-          ["owner_id", p.ownerId],
-          ["type_id", p.typeId],
-          ["state", p.state],
-        ],
-        [
-          ["asap", p.asap],
-          ["archived", p.archived],
-          ["overdue", p.overdue],
-          ["with_due_date", p.withDueDate],
-        ],
-      );
+        ["column_id", p.columnId],
+        ["lane_id", p.laneId],
+        ["owner_id", p.ownerId],
+        ["type_id", p.typeId],
+        ["state", p.state],
+        ["asap", p.asap],
+        ["archived", p.archived],
+        ["overdue", p.overdue],
+        ["with_due_date", p.withDueDate],
+        ["created_before", p.createdBefore],
+        ["created_after", p.createdAfter],
+        ["updated_before", p.updatedBefore],
+        ["updated_after", p.updatedAfter],
+        ["due_date_before", p.dueDateBefore],
+        ["due_date_after", p.dueDateAfter],
+        ["owner_ids", p.ownerIds],
+        ["member_ids", p.memberIds],
+        ["tag_ids", p.tagIds],
+      ]);
 
       const cards = await get("/cards", q);
       return jsonResult(
@@ -204,8 +195,9 @@ export function registerCardTools(
     }) => {
       const v = verbosity as Verbosity;
       const cards = await get(
-        `/spaces/${spaceId}/cards`,
+        "/cards",
         {
+          space_id: String(spaceId),
           limit: String(limit),
           skip: String(offset),
           condition: String(condition),
@@ -236,8 +228,9 @@ export function registerCardTools(
     }) => {
       const v = verbosity as Verbosity;
       const cards = await get(
-        `/boards/${boardId}/cards`,
+        "/cards",
         {
+          board_id: String(boardId),
           limit: String(limit),
           skip: String(offset),
           condition: String(condition),
@@ -304,7 +297,7 @@ export function registerCardTools(
       };
 
       const card = await post<Obj>(
-        `/boards/${p.boardId}/cards`, body,
+        "/cards", body,
       );
       return jsonResult(simplifyCard(card, v));
     }),

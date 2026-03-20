@@ -100,19 +100,17 @@ describe("config", () => {
     },
   );
 
-  it("getToken / getBaseUrl helpers", () => {
+  it("getBaseUrl / getDefaultSpaceId helpers", () => {
     const out = runInSubprocess(
       {
         ...BASE_ENV,
         KAITEN_DEFAULT_SPACE_ID: "7",
       },
       `console.log(JSON.stringify({`
-      + `t:m.getToken(),`
       + `b:m.getBaseUrl(),`
       + `d:m.getDefaultSpaceId()}))`,
     );
     const c = JSON.parse(out);
-    assert.equal(c.t, "test-token-123");
     assert.equal(
       c.b,
       "https://test.kaiten.ru/api/latest",

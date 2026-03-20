@@ -4,14 +4,14 @@ import { get, post, patch, del } from "../client.js";
 import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
-import { buildOptionalBody } from "../utils/schemas.js";
+import {
+  type Obj, buildOptionalBody,
+} from "../utils/schemas.js";
 import {
   simplifyTimelog, simplifyList,
   verbositySchema,
   type Verbosity,
 } from "../utils/simplify.js";
-
-type Obj = Record<string, unknown>;
 
 export function registerTimelogTools(
   server: McpServer,
@@ -69,12 +69,16 @@ export function registerTimelogTools(
   server.tool(
     "kaiten_create_timelog",
     "Log time spent on a card. Time is in "
-    + "minutes (e.g. 90 for 1.5 hours). Optional "
-    + "comment and date (defaults to today).",
+    + "minutes (e.g. 90 for 1.5 hours). roleId is "
+    + "required — use kaiten_get_user_roles to find "
+    + "available roles.",
     {
       cardId: z.number().int().describe("Card ID"),
       timeSpentMinutes: z.number().int().min(1)
         .describe("Time spent in minutes"),
+      roleId: z.number().int().describe(
+        "Role ID (use kaiten_get_user_roles)",
+      ),
       comment: z.string().optional().describe(
         "Comment for the time-log",
       ),
@@ -84,12 +88,13 @@ export function registerTimelogTools(
       verbosity: verbositySchema,
     },
     handleTool(async ({
-      cardId, timeSpentMinutes, comment,
-      forDate, verbosity,
+      cardId, timeSpentMinutes, roleId,
+      comment, forDate, verbosity,
     }) => {
       const v = verbosity as Verbosity;
       const body = {
         time_spent: timeSpentMinutes,
+        role_id: roleId,
         ...buildOptionalBody([
           ["comment", comment],
           ["for_date", forDate],
@@ -116,6 +121,9 @@ export function registerTimelogTools(
       timeSpentMinutes: z.number().int().min(1)
         .optional()
         .describe("New time spent in minutes"),
+      roleId: z.number().int().optional().describe(
+        "New role ID",
+      ),
       comment: z.string().optional().describe(
         "New comment",
       ),
@@ -130,6 +138,7 @@ export function registerTimelogTools(
       const v = verbosity as Verbosity;
       const body = buildOptionalBody([
         ["time_spent", fields.timeSpentMinutes],
+        ["role_id", fields.roleId],
         ["comment", fields.comment],
         ["for_date", fields.forDate],
       ]);
@@ -143,16 +152,20 @@ export function registerTimelogTools(
 
   server.tool(
     "kaiten_delete_timelog",
-    "Delete a time-log entry by logId. Get logId "
-    + "from kaiten_get_card_timelogs or "
+    "Delete a time-log entry. Requires both "
+    + "cardId and logId. Get logId from "
+    + "kaiten_get_card_timelogs or "
     + "kaiten_get_user_timelogs.",
     {
+      cardId: z.number().int().describe("Card ID"),
       logId: z.number().int().describe(
         "Time-log ID",
       ),
     },
-    handleTool(async ({ logId }) => {
-      await del(`/time-logs/${logId}`);
+    handleTool(async ({ cardId, logId }) => {
+      await del(
+        `/cards/${cardId}/time-logs/${logId}`,
+      );
       return textResult(
         `Time-log ${logId} deleted`,
       );

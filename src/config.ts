@@ -69,10 +69,6 @@ export function getConfig(): Config {
   return cached;
 }
 
-export function getToken(): string {
-  return getConfig().token;
-}
-
 export function getBaseUrl(): string {
   return getConfig().baseUrl;
 }

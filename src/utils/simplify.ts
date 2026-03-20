@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 import { getBaseUrl } from "../config.js";
-
-type Obj = Record<string, unknown>;
+import type { Obj } from "./schemas.js";
 
 export type Verbosity = "raw" | "min" | "normal" | "max";
 

@@ -1,4 +1,4 @@
-import { getToken, getBaseUrl, getConfig } from "./config.js";
+import { getConfig } from "./config.js";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
@@ -60,18 +60,16 @@ async function request<T>(
   body?: unknown,
   query?: Record<string, string>,
 ): Promise<T> {
-  const token = getToken();
-  const base = getBaseUrl();
-  const { requestTimeoutMs } = getConfig();
+  const cfg = getConfig();
 
-  let url = `${base}${path}`;
+  let url = `${cfg.baseUrl}${path}`;
   if (query) {
     const params = new URLSearchParams(query);
     url += `?${params.toString()}`;
   }
 
   const headers: Record<string, string> = {
-    "Authorization": `Bearer ${token}`,
+    "Authorization": `Bearer ${cfg.token}`,
     "Content-Type": "application/json",
   };
 
@@ -84,7 +82,7 @@ async function request<T>(
   ) {
     const ac = new AbortController();
     const timer = setTimeout(
-      () => ac.abort(), requestTimeoutMs,
+      () => ac.abort(), cfg.requestTimeoutMs,
     );
 
     try {
@@ -95,14 +93,16 @@ async function request<T>(
         signal: ac.signal,
       });
 
-      clearTimeout(timer);
-
       if (resp.ok) {
-        if (resp.status === 204) return {} as T;
-        return await resp.json() as T;
+        const result = resp.status === 204
+          ? {} as T
+          : await resp.json() as T;
+        clearTimeout(timer);
+        return result;
       }
 
       const text = await resp.text();
+      clearTimeout(timer);
 
       if (
         attempt < MAX_RETRIES
@@ -150,7 +150,7 @@ async function request<T>(
         throw new KaitenApiError(
           0,
           `Request timed out after `
-          + `${requestTimeoutMs}ms`,
+          + `${cfg.requestTimeoutMs}ms`,
           url,
         );
       }

@@ -1,6 +1,21 @@
 # Changelog
 
-## [1.0.0] - 2026-03-16
+## [1.0.1] - 2026-03-20
+
+### Fixed
+- Fixed API endpoints for card creation, search, board/space listing, and card types
+- Time-log creation now requires role ID (mandatory Kaiten API field)
+- Time-log deletion now requires card ID (alternative endpoint bypassing WAF)
+
+### Added
+- Russian README
+- Integration tests auto-cleanup on failure
+
+### Changed
+- Time-log update supports optional role ID
+- Internal code improvements
+
+## [1.0.0] - 2026-03-20
 
 ### Features — 26 tools
 - **Cards (7):** get, search, list by space/board, create, update, delete

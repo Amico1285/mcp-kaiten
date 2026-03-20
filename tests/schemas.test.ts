@@ -34,12 +34,14 @@ describe("buildOptionalBody", () => {
 describe("addOptionalParams", () => {
   it("adds string, number, boolean params", () => {
     const q: Record<string, string> = {};
-    addOptionalParams(
-      q,
-      [["query", "test"], ["empty", undefined]],
-      [["board_id", 42], ["skip", undefined]],
-      [["asap", true], ["archived", undefined]],
-    );
+    addOptionalParams(q, [
+      ["query", "test"],
+      ["empty", undefined],
+      ["board_id", 42],
+      ["skip", undefined],
+      ["asap", true],
+      ["archived", undefined],
+    ]);
     assert.deepEqual(q, {
       query: "test",
       board_id: "42",
@@ -49,12 +51,11 @@ describe("addOptionalParams", () => {
 
   it("handles all undefined gracefully", () => {
     const q: Record<string, string> = {};
-    addOptionalParams(
-      q,
-      [["a", undefined]],
-      [["b", undefined]],
-      [["c", undefined]],
-    );
+    addOptionalParams(q, [
+      ["a", undefined],
+      ["b", undefined],
+      ["c", undefined],
+    ]);
     assert.deepEqual(q, {});
   });
 });

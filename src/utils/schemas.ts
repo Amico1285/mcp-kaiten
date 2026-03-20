@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export type Obj = Record<string, unknown>;
+
 export function optionalInt(desc: string) {
   return z.number().int().optional().describe(desc);
 }
@@ -18,8 +20,8 @@ export const conditionSchema = z.number().int()
 
 export function buildOptionalBody(
   pairs: [string, unknown][],
-): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
+): Obj {
+  const body: Obj = {};
   for (const [key, val] of pairs) {
     if (val !== undefined) body[key] = val;
   }
@@ -28,17 +30,10 @@ export function buildOptionalBody(
 
 export function addOptionalParams(
   q: Record<string, string>,
-  str: [string, string | undefined][],
-  num: [string, number | undefined][],
-  bool: [string, boolean | undefined][],
+  pairs: [string, string | number | boolean
+    | undefined][],
 ): void {
-  for (const [key, val] of str) {
-    if (val !== undefined) q[key] = val;
-  }
-  for (const [key, val] of num) {
-    if (val !== undefined) q[key] = String(val);
-  }
-  for (const [key, val] of bool) {
+  for (const [key, val] of pairs) {
     if (val !== undefined) q[key] = String(val);
   }
 }

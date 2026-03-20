@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { get } from "../client.js";
 import { jsonResult, handleTool } from "../utils/errors.js";
+import type { Obj } from "../utils/schemas.js";
 import {
   spacesCache, boardsCache,
 } from "../utils/cache.js";
@@ -11,8 +12,6 @@ import {
   verbositySchema,
   type Verbosity,
 } from "../utils/simplify.js";
-
-type Obj = Record<string, unknown>;
 
 export function registerSpaceTools(
   server: McpServer,
@@ -157,9 +156,7 @@ export function registerSpaceTools(
       const v = verbosity as Verbosity;
       const types = await boardsCache.getOrFetch(
         `board:${boardId}:types`,
-        () => get<Obj[]>(
-          `/boards/${boardId}/card-types`,
-        ),
+        () => get<Obj[]>("/card-types"),
       );
       if (v === "raw") return jsonResult(types);
       return jsonResult(

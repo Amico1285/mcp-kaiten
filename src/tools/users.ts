@@ -2,14 +2,13 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { get } from "../client.js";
 import { jsonResult, handleTool } from "../utils/errors.js";
+import type { Obj } from "../utils/schemas.js";
 import { usersCache } from "../utils/cache.js";
 import {
   simplifyUser, simplifyList,
   verbositySchema,
   type Verbosity,
 } from "../utils/simplify.js";
-
-type Obj = Record<string, unknown>;
 
 export function registerUserTools(
   server: McpServer,
