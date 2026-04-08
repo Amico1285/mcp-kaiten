@@ -60,13 +60,16 @@ export function registerBlockerTools(
     {
       title: "List Card Blockers",
       description:
-        "List all blockers on a card. Each blocker has either a "
-        + "free-text `reason`, a pointer to a blocking card "
+        "List all blockers on a card, INCLUDING released ones "
+        + "(`released:true` rows are kept in history). Filter by "
+        + "the `released` field client-side to find currently-"
+        + "active blockers. Each blocker has either a free-text "
+        + "`reason`, a pointer to a blocking card "
         + "(`blocker_card_id` + `blocker_card_title`), or both. "
-        + "`released:true` means the block is soft-released but "
-        + "still in history; release via kaiten_update_card_blocker "
-        + "or hard-delete via kaiten_delete_card_blocker. "
-        + "cardId from kaiten_search_cards. "
+        + "Release a blocker via kaiten_release_card_blocker "
+        + "(which uses Kaiten's DELETE endpoint as a soft release "
+        + "— there is no hard-delete API). cardId from "
+        + "kaiten_search_cards. "
         + "Returns: array of blocker objects (simplified per "
         + "verbosity).",
       inputSchema: {
@@ -146,10 +149,13 @@ export function registerBlockerTools(
     {
       title: "Update Card Blocker",
       description:
-        "Patch an existing blocker. Typical uses: soft-release "
-        + "via `released:true` (keeps history) or edit `reason`. "
-        + "blockerId from kaiten_list_card_blockers. Preflight "
-        + "verifies the blocker actually belongs to this card.",
+        "Patch an existing blocker. Updatable fields: reason, "
+        + "blockerCardId, dueDate, dueDateTimePresent. Cannot "
+        + "set released — that's a separate endpoint, use "
+        + "kaiten_release_card_blocker. Cannot un-release — "
+        + "once released:true, no API path back to released:"
+        + "false. Preflight verifies the blocker belongs to "
+        + "this card. blockerId from kaiten_list_card_blockers.",
       inputSchema: {
         cardId: positiveId(
           "Card ID (from kaiten_search_cards)",
@@ -162,9 +168,6 @@ export function registerBlockerTools(
         ),
         blockerCardId: optionalPositiveId(
           "Repoint to a different blocking card ID",
-        ),
-        released: boolish.optional().describe(
-          "Mark the blocker as released (soft; keeps history)",
         ),
         dueDate: optionalIsoDateTime(
           "Block deadline in ISO 8601 "
@@ -189,12 +192,11 @@ export function registerBlockerTools(
       const body = buildOptionalBody([
         ["reason", fields.reason],
         ["blocker_card_id", fields.blockerCardId],
-        ["released", fields.released],
         ["due_date", fields.dueDate],
         ["due_date_time_present", fields.dueDateTimePresent],
       ]);
       requireSomeFields(body, "kaiten_update_card_blocker", [
-        "reason", "blockerCardId", "released",
+        "reason", "blockerCardId",
         "dueDate", "dueDateTimePresent",
       ]);
       await assertChildBelongsToParent({
@@ -214,15 +216,20 @@ export function registerBlockerTools(
   );
 
   server.registerTool(
-    "kaiten_delete_card_blocker",
+    "kaiten_release_card_blocker",
     {
-      title: "Delete Card Blocker",
+      title: "Release Card Blocker",
       description:
-        "Hard-delete a blocker from a card (removes the row "
-        + "entirely; for soft release use "
-        + "kaiten_update_card_blocker with released:true). "
-        + "Preflight verifies the blocker belongs to this card. "
-        + "blockerId from kaiten_list_card_blockers.",
+        "Release a blocker on a card. Despite using DELETE "
+        + "under the hood, this does NOT remove the row — "
+        + "Kaiten flips released:true / released_by_id and "
+        + "keeps the blocker in history. The released blocker "
+        + "continues to appear in kaiten_list_card_blockers. "
+        + "To filter active vs released, check the released "
+        + "field client-side. There is no hard-delete API for "
+        + "blockers in Kaiten. Preflight verifies the blocker "
+        + "belongs to this card. blockerId from "
+        + "kaiten_list_card_blockers.",
       inputSchema: {
         cardId: positiveId(
           "Card ID (from kaiten_search_cards)",
@@ -233,14 +240,14 @@ export function registerBlockerTools(
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: true,
+        destructiveHint: false,
         openWorldHint: true,
-        idempotentHint: false,
+        idempotentHint: true,
       },
     },
     handleTool(async ({ cardId, blockerId }) => {
       await assertChildBelongsToParent({
-        toolName: "kaiten_delete_card_blocker",
+        toolName: "kaiten_release_card_blocker",
         childId: blockerId,
         childDescriptor: `blocker ${blockerId}`,
         parentDescriptor: `card ${cardId}`,
@@ -252,7 +259,7 @@ export function registerBlockerTools(
         `/cards/${cardId}/blockers/${blockerId}`,
       );
       return textResult(
-        `Blocker ${blockerId} deleted from card ${cardId}`,
+        `Blocker ${blockerId} released on card ${cardId}`,
       );
     }),
   );
