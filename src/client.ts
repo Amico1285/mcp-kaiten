@@ -18,29 +18,84 @@ export class KaitenApiError extends Error {
     public readonly url: string,
   ) {
     super(
-      `Kaiten API ${status}${hint(status)}: ${body}`,
+      `Kaiten API ${status}${hint(status, url)}: ${body}`,
     );
     this.name = "KaitenApiError";
   }
 }
 
-function hint(status: number): string {
+// Map Kaiten URL patterns to family-specific recovery tools.
+// First match wins. The fallback at the end covers everything
+// not in the table. Patterns are anchored on the resource segment
+// (e.g. /cards/{id}/comments) so that nested paths route to the
+// nearest list tool.
+//
+// Used by hint() for 404/403 messages so that the LLM is told
+// which list tool to call to verify the offending ID, instead of
+// the previous static "kaiten_search_cards or kaiten_list_spaces"
+// which was wrong for almost every non-card resource.
+const RECOVERY_TOOLS: Array<[RegExp, string]> = [
+  [/\/cards\/\d+\/comments\b/, "kaiten_get_card_comments"],
+  [
+    /\/cards\/\d+\/checklists\b/,
+    "kaiten_get_checklist or kaiten_get_card(verbosity=max)",
+  ],
+  [/\/cards\/\d+\/files\b/, "kaiten_list_files"],
+  [/\/cards\/\d+\/time-logs\b/, "kaiten_get_card_timelogs"],
+  [/\/cards\/\d+\/tags\b/, "kaiten_list_card_tags"],
+  [/\/cards\/\d+\/children\b/, "kaiten_list_subtasks"],
+  [/\/cards\/\d+\/members\b/, "kaiten_list_card_members"],
+  [/\/cards\/\d+\/blockers\b/, "kaiten_list_card_blockers"],
+  [
+    /\/cards\b/,
+    "kaiten_search_cards or kaiten_get_card",
+  ],
+  [/\/users\/\d+\/time-logs\b/, "kaiten_get_user_timelogs"],
+  [/\/spaces\/\d+\/boards\b/, "kaiten_list_boards"],
+  [/\/spaces\/\d+\/users\b/, "kaiten_list_space_users"],
+  [/\/spaces\b/, "kaiten_list_spaces"],
+  [/\/boards\/\d+\/columns\b/, "kaiten_list_columns"],
+  [/\/boards\/\d+\/lanes\b/, "kaiten_list_lanes"],
+  [/\/boards\b/, "kaiten_list_boards"],
+  [/\/checklists\/\d+\/items\b/, "kaiten_get_checklist"],
+  [/\/card-types\b/, "kaiten_list_card_types"],
+  [
+    /\/company\/custom-properties\b/,
+    "kaiten_list_custom_properties",
+  ],
+  [/\/user-roles\b/, "kaiten_list_company_roles"],
+  [/\/users\b/, "kaiten_list_users"],
+  [/\/tags\b/, "kaiten_list_workspace_tags"],
+];
+
+function recoveryToolFor(url: string): string {
+  for (const [pattern, tool] of RECOVERY_TOOLS) {
+    if (pattern.test(url)) return tool;
+  }
+  return "the relevant kaiten_list_* / kaiten_search_cards tool";
+}
+
+function hint(status: number, url: string): string {
+  const recovery = recoveryToolFor(url);
   switch (status) {
     case 401:
       return " (token expired or invalid). "
         + "Regenerate at Profile → API Key";
     case 403:
-      return " (access denied). "
-        + "Check space/board permissions";
+      // Kaiten returns 403 for both genuine permission denials
+      // AND non-existent IDs. Surface both possibilities so the
+      // LLM picks the right recovery path instead of always
+      // suggesting "fix permissions".
+      return " (access denied or ID not found). "
+        + `Check space/board permissions, OR verify the ID via ${recovery}`;
     case 404:
-      return " (not found). Verify ID via "
-        + "kaiten_search_cards or kaiten_list_spaces";
+      return ` (not found). Verify the ID via ${recovery}`;
     case 409:
       return " (conflict). Resource was modified "
         + "concurrently, re-read and retry";
     case 422:
-      return " (validation error). Check required "
-        + "fields: title, boardId, columnId";
+      return " (validation error). "
+        + "Check required fields and value formats";
     case 429:
       return " (rate limited). Retry in a moment";
     case 502:
