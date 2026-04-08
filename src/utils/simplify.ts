@@ -148,13 +148,36 @@ const spaceFns: SimplifyFns = {
   normal: (s) => ({
     id: s.id,
     title: s.title,
-    archived: s.archived,
-    boards: Array.isArray(s.boards)
-      ? (s.boards as Obj[]).map((b) => ({
-        id: b.id,
-        title: b.title,
-      }))
-      : [],
+    archived: s.archived ?? false,
+    access: s.access ?? null,
+    company_id: s.company_id ?? null,
+    sort_order: s.sort_order ?? null,
+  }),
+  // Kaiten /spaces/{id} response carries quite a lot of
+  // metadata (settings, hidden card type uids, paths, …).
+  // verbosity=max should expose all of it; the actual list
+  // of boards is fetched separately via kaiten_list_boards.
+  max: (s) => ({
+    id: s.id,
+    uid: s.uid ?? null,
+    title: s.title,
+    archived: s.archived ?? false,
+    access: s.access ?? null,
+    for_everyone_access_role_id:
+      s.for_everyone_access_role_id ?? null,
+    entity_type: s.entity_type ?? null,
+    path: s.path ?? null,
+    sort_order: s.sort_order ?? null,
+    parent_entity_uid: s.parent_entity_uid ?? null,
+    company_id: s.company_id ?? null,
+    allowed_card_type_ids:
+      s.allowed_card_type_ids ?? null,
+    hidden_card_type_uids:
+      s.hidden_card_type_uids ?? null,
+    external_id: s.external_id ?? null,
+    settings: s.settings ?? null,
+    created: s.created ?? null,
+    updated: s.updated ?? null,
   }),
 };
 
@@ -174,8 +197,48 @@ const boardFns: SimplifyFns = {
   normal: (b) => ({
     id: b.id,
     title: b.title,
-    space_id: b.space_id,
-    archived: b.archived,
+    description: b.description ?? null,
+    default_card_type_id: b.default_card_type_id ?? null,
+    archived: b.archived ?? false,
+    created: b.created ?? null,
+    updated: b.updated ?? null,
+  }),
+  // Full board metadata: useful when an LLM needs to see
+  // both the board attributes AND the inline columns/lanes
+  // without making three round-trips.
+  max: (b) => ({
+    id: b.id,
+    title: b.title,
+    description: b.description ?? null,
+    default_card_type_id: b.default_card_type_id ?? null,
+    email_key: b.email_key ?? null,
+    external_id: b.external_id ?? null,
+    move_parents_to_done: b.move_parents_to_done ?? false,
+    default_tags: b.default_tags ?? null,
+    first_image_is_cover:
+      b.first_image_is_cover ?? false,
+    reset_lane_spent_time:
+      b.reset_lane_spent_time ?? false,
+    backward_moves_enabled:
+      b.backward_moves_enabled ?? false,
+    hide_done_policies: b.hide_done_policies ?? false,
+    hide_done_policies_in_done_column:
+      b.hide_done_policies_in_done_column ?? false,
+    automove_cards: b.automove_cards ?? false,
+    auto_assign_enabled: b.auto_assign_enabled ?? false,
+    cell_wip_limits: b.cell_wip_limits ?? null,
+    card_properties: b.card_properties ?? null,
+    columns: Array.isArray(b.columns)
+      ? (b.columns as Obj[]).map(
+        (c) => simplifyColumn(c),
+      )
+      : null,
+    lanes: Array.isArray(b.lanes)
+      ? (b.lanes as Obj[]).map((l) => simplifyLane(l))
+      : null,
+    archived: b.archived ?? false,
+    created: b.created ?? null,
+    updated: b.updated ?? null,
   }),
 };
 
@@ -187,10 +250,20 @@ export function simplifyBoard(
 
 // ── Comments ───────────────────────────────
 
+// Some comment endpoints (notably create_comment /
+// update_comment) return the author as flat fields
+// (`author_id`, `author.full_name` may be missing) instead
+// of a nested `author` object the way get_card_comments
+// does. Fall back through both shapes so simplify never
+// reports `author_name: null` when the data is actually
+// present.
 const commentFns: SimplifyFns = {
   min: (c) => ({
     id: c.id,
-    author_name: nested(c, "author")?.full_name ?? null,
+    author_name:
+      nested(c, "author")?.full_name
+      ?? c.author_name
+      ?? null,
     created: c.created,
   }),
   normal: (c) => ({
@@ -198,8 +271,14 @@ const commentFns: SimplifyFns = {
     text: c.text,
     created: c.created,
     updated: c.updated,
-    author_id: nested(c, "author")?.id ?? null,
-    author_name: nested(c, "author")?.full_name ?? null,
+    author_id:
+      nested(c, "author")?.id
+      ?? c.author_id
+      ?? null,
+    author_name:
+      nested(c, "author")?.full_name
+      ?? c.author_name
+      ?? null,
   }),
 };
 
@@ -211,6 +290,11 @@ export function simplifyComment(
 
 // ── Time-logs ──────────────────────────────
 
+// Same shape inconsistency as comments: get_card_timelogs
+// nests `author`, but create/update_timelog return
+// `author_id` / `author_name` as flat fields. Fall back
+// through both so verbosity=normal never silently shows
+// `author_name: null`.
 const timelogFns: SimplifyFns = {
   min: (l) => ({
     id: l.id,
@@ -227,9 +311,14 @@ const timelogFns: SimplifyFns = {
     created: l.created,
     updated: l.updated,
     author_id:
-      nested(l, "author")?.id ?? l.user_id ?? null,
+      nested(l, "author")?.id
+      ?? l.author_id
+      ?? l.user_id
+      ?? null,
     author_name:
-      nested(l, "author")?.full_name ?? null,
+      nested(l, "author")?.full_name
+      ?? l.author_name
+      ?? null,
   }),
 };
 

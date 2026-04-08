@@ -4,9 +4,6 @@ import { get, post, del } from "../client.js";
 import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
-import { TtlCache } from "../utils/cache.js";
-
-const tagsCache = new TtlCache<unknown>();
 
 interface Tag {
   readonly id: number;
@@ -26,12 +23,19 @@ export function registerTagTools(
   server: McpServer,
 ): void {
   server.registerTool(
-    "kaiten_list_tags",
+    "kaiten_list_card_tags",
     {
-      title: "List Tags",
+      title: "List Card Tags",
       description:
-        "All tags with IDs. tagId for kaiten_add_tag/"
-        + "kaiten_remove_tag; tagIds on kaiten_search_cards.",
+        "List tags currently attached to a card. Endpoint: "
+        + "GET /cards/{card_id}/tags. NOTE: Kaiten REST API "
+        + "does not expose a workspace-wide tag list — tags "
+        + "live on cards. To create a new tag, just call "
+        + "kaiten_add_tag with a name; Kaiten auto-creates "
+        + "missing tags on demand.",
+      inputSchema: {
+        cardId: z.coerce.number().int().describe("Card ID"),
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -39,15 +43,11 @@ export function registerTagTools(
         idempotentHint: true,
       },
     },
-    handleTool(async () => {
-      const tags = await tagsCache.getOrFetch(
-        "all",
-        () => get<Record<string, unknown>[]>("/tags"),
+    handleTool(async ({ cardId }) => {
+      const tags = await get<Record<string, unknown>[]>(
+        `/cards/${cardId}/tags`,
       );
-      return jsonResult(
-        (tags as Record<string, unknown>[])
-          .map(simplifyTag),
-      );
+      return jsonResult(tags.map(simplifyTag));
     }),
   );
 
@@ -56,11 +56,15 @@ export function registerTagTools(
     {
       title: "Add Card Tag",
       description:
-        "Tag on card. tagId from kaiten_list_tags; cardId "
-        + "from kaiten_search_cards or kaiten_get_card.",
+        "Attach a tag to a card by name. If a tag with "
+        + "this name does not yet exist in the workspace, "
+        + "Kaiten will auto-create it. Returns the tag "
+        + "object (including its ID, which you need for "
+        + "kaiten_remove_tag).",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        tagId: z.number().int().describe("Tag ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
+        name: z.string().min(1)
+          .describe("Tag name (auto-created if missing)"),
       },
       annotations: {
         readOnlyHint: false,
@@ -69,27 +73,12 @@ export function registerTagTools(
         idempotentHint: false,
       },
     },
-    handleTool(async ({ cardId, tagId }) => {
-      const tags = await tagsCache.getOrFetch(
-        "all",
-        () => get<Record<string, unknown>[]>("/tags"),
-      ) as Record<string, unknown>[];
-      const tag = tags.find(
-        (t) => t.id === tagId,
-      );
-      if (!tag) {
-        throw new Error(
-          `Tag ${tagId} not found. `
-          + `Use kaiten_list_tags to get valid IDs.`,
-        );
-      }
-      await post(
+    handleTool(async ({ cardId, name }) => {
+      const tag = await post<Record<string, unknown>>(
         `/cards/${cardId}/tags`,
-        { name: tag.name as string },
+        { name },
       );
-      return textResult(
-        `Tag "${tag.name}" (${tagId}) added to card ${cardId}`,
-      );
+      return jsonResult(simplifyTag(tag));
     }),
   );
 
@@ -98,11 +87,13 @@ export function registerTagTools(
     {
       title: "Remove Card Tag",
       description:
-        "Untag card. tagId from kaiten_list_tags or "
-        + "kaiten_get_card (max verbosity).",
+        "Detach a tag from a card. tagId is the numeric "
+        + "ID of the tag on the card — obtain it from "
+        + "kaiten_get_card (verbosity=max) or from the "
+        + "response of kaiten_add_tag.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        tagId: z.number().int().describe("Tag ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
+        tagId: z.coerce.number().int().describe("Tag ID"),
       },
       annotations: {
         readOnlyHint: false,

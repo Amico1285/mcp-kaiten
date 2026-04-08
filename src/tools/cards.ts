@@ -27,7 +27,7 @@ export function registerCardTools(
         + "child cards. ID from kaiten_search_cards or "
         + "kaiten_get_board_cards.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
         includeChildren: z.boolean().default(false)
           .describe("Also fetch child cards"),
         verbosity: verbositySchema,
@@ -197,7 +197,7 @@ export function registerCardTools(
         "Recent cards in a space (newest first, no filters). "
         + "For filtered search use kaiten_search_cards.",
       inputSchema: {
-        spaceId: z.number().int().describe("Space ID"),
+        spaceId: z.coerce.number().int().describe("Space ID"),
         condition: conditionSchema,
         ...paginationSchema,
         verbosity: verbositySchema,
@@ -225,7 +225,7 @@ export function registerCardTools(
         "Recent cards on a board (newest first, no filters). "
         + "For filtered search use kaiten_search_cards.",
       inputSchema: {
-        boardId: z.number().int().describe("Board ID"),
+        boardId: z.coerce.number().int().describe("Board ID"),
         condition: conditionSchema,
         ...paginationSchema,
         verbosity: verbositySchema,
@@ -251,10 +251,12 @@ export function registerCardTools(
       title: "Create Card",
       description:
         "Create card. Requires boardId + columnId from "
-        + "kaiten_list_columns. Optional: laneId, typeId.",
+        + "kaiten_list_columns. Optional: laneId, typeId, "
+        + "sizeText. ownerId must be a positive integer "
+        + "(Kaiten requires every card to have an owner).",
       inputSchema: {
-      boardId: z.number().int().describe("Board ID"),
-      columnId: z.number().int().describe(
+      boardId: z.coerce.number().int().describe("Board ID"),
+      columnId: z.coerce.number().int().describe(
         "Column ID",
       ),
       title: z.string().min(1).max(500).describe(
@@ -268,13 +270,22 @@ export function registerCardTools(
       sortOrder: optionalInt(
         "Sort order in column",
       ),
-      size: z.number().min(0).optional().describe(
-        "Story points / size",
-      ),
+      sizeText: z.union([z.string(), z.coerce.number()])
+        .optional()
+        .describe(
+          "Card size as text. Examples: '1', '5 SP', "
+          + "'L', '3 M', 'XL'. Sent as `size_text` to API. "
+          + "The numeric `size` field on a card is read-only "
+          + "and computed from this text.",
+        ),
       asap: z.boolean().optional().describe(
         "Mark as urgent",
       ),
-      ownerId: optionalInt("Owner user ID"),
+      ownerId: z.coerce.number().int().positive().optional()
+        .describe(
+          "Owner user ID (must be a positive integer). "
+          + "Defaults to API caller if omitted.",
+        ),
       dueDate: z.string().optional().describe(
         "Due date (ISO 8601)",
       ),
@@ -298,7 +309,7 @@ export function registerCardTools(
           ["description", p.description],
           ["type_id", p.typeId],
           ["sort_order", p.sortOrder],
-          ["size", p.size],
+          ["size_text", p.sizeText],
           ["asap", p.asap],
           ["owner_id", p.ownerId],
           ["due_date", p.dueDate],
@@ -319,9 +330,13 @@ export function registerCardTools(
       description:
         "Update card fields. For moves use "
         + "kaiten_list_columns, kaiten_list_lanes, "
-        + "kaiten_list_boards IDs.",
+        + "kaiten_list_boards IDs. To change state — move "
+        + "the card via columnId (Kaiten state is computed "
+        + "from column.type, not settable directly). "
+        + "To change size — use sizeText (the numeric size "
+        + "field on a card is read-only).",
       inputSchema: {
-      cardId: z.number().int().describe("Card ID"),
+      cardId: z.coerce.number().int().describe("Card ID"),
       title: z.string().optional().describe(
         "New title",
       ),
@@ -332,14 +347,23 @@ export function registerCardTools(
       laneId: optionalInt("Move to lane ID"),
       boardId: optionalInt("Move to board ID"),
       typeId: optionalInt("Change card type ID"),
-      state: optionalInt("Change state"),
-      size: z.number().min(0).optional().describe(
-        "Story points / size",
-      ),
+      sizeText: z.union([z.string(), z.coerce.number()])
+        .optional()
+        .describe(
+          "Card size as text. Examples: '1', '5 SP', "
+          + "'L', '3 M', 'XL'. Sent as `size_text` to API. "
+          + "The numeric `size` field on a card is read-only "
+          + "and computed from this text.",
+        ),
       asap: z.boolean().optional().describe(
         "Mark as urgent",
       ),
-      ownerId: optionalInt("Change owner user ID"),
+      ownerId: z.coerce.number().int().positive().optional()
+        .describe(
+          "Reassign owner to user ID (must be a positive "
+          + "integer). Kaiten requires every card to have "
+          + "an owner — cannot be unset, only reassigned.",
+        ),
       dueDate: z.string().optional().describe(
         "Due date (ISO 8601)",
       ),
@@ -363,8 +387,7 @@ export function registerCardTools(
         ["lane_id", fields.laneId],
         ["board_id", fields.boardId],
         ["type_id", fields.typeId],
-        ["state", fields.state],
-        ["size", fields.size],
+        ["size_text", fields.sizeText],
         ["asap", fields.asap],
         ["owner_id", fields.ownerId],
         ["due_date", fields.dueDate],
@@ -386,7 +409,7 @@ export function registerCardTools(
         + "Resolve cardId via kaiten_search_cards or "
         + "kaiten_get_card.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
       },
       annotations: {
         readOnlyHint: false,

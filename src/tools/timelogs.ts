@@ -24,7 +24,7 @@ export function registerTimelogTools(
         "User timelogs, from/to ISO. userId from "
         + "kaiten_get_current_user; titles via kaiten_get_card.",
       inputSchema: {
-        userId: z.number().int().describe("User ID"),
+        userId: z.coerce.number().int().describe("User ID"),
         from: z.string().describe("ISO start"),
         to: z.string().describe("ISO end"),
         verbosity: verbositySchema,
@@ -58,7 +58,7 @@ export function registerTimelogTools(
         + "kaiten_delete_timelog; cardId from "
         + "kaiten_search_cards.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -88,10 +88,10 @@ export function registerTimelogTools(
         + "cardId from kaiten_search_cards; see "
         + "kaiten_get_card_timelogs.",
       inputSchema: {
-      cardId: z.number().int().describe("Card ID"),
-      timeSpentMinutes: z.number().int().min(1)
+      cardId: z.coerce.number().int().describe("Card ID"),
+      timeSpentMinutes: z.coerce.number().int().min(1)
         .describe("Minutes spent"),
-      roleId: z.number().int().describe("Role ID"),
+      roleId: z.coerce.number().int().describe("Role ID"),
       comment: z.string().optional().describe(
         "Log comment",
       ),
@@ -137,14 +137,14 @@ export function registerTimelogTools(
         + "kaiten_get_card_timelogs or "
         + "kaiten_get_user_timelogs.",
       inputSchema: {
-      cardId: z.number().int().describe("Card ID"),
-      logId: z.number().int().describe(
+      cardId: z.coerce.number().int().describe("Card ID"),
+      logId: z.coerce.number().int().describe(
         "Time-log ID",
       ),
-      timeSpentMinutes: z.number().int().min(1)
+      timeSpentMinutes: z.coerce.number().int().min(1)
         .optional()
         .describe("New minutes"),
-      roleId: z.number().int().optional().describe(
+      roleId: z.coerce.number().int().optional().describe(
         "New role",
       ),
       comment: z.string().optional().describe(
@@ -189,8 +189,8 @@ export function registerTimelogTools(
         + "kaiten_get_card_timelogs or "
         + "kaiten_get_user_timelogs.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        logId: z.number().int().describe(
+        cardId: z.coerce.number().int().describe("Card ID"),
+        logId: z.coerce.number().int().describe(
           "Time-log ID",
         ),
       },

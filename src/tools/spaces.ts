@@ -51,7 +51,7 @@ export function registerSpaceTools(
         + "kaiten_list_spaces when the list view is "
         + "not enough before drilling into boards.",
       inputSchema: {
-        spaceId: z.number().int().describe(
+        spaceId: z.coerce.number().int().describe(
           "Space ID",
         ),
         verbosity: verbositySchema,
@@ -82,7 +82,7 @@ export function registerSpaceTools(
         + "kaiten_get_board_cards, kaiten_search_cards, "
         + "kaiten_create_card.",
       inputSchema: {
-        spaceId: z.number().int().describe(
+        spaceId: z.coerce.number().int().describe(
           "Space ID",
         ),
         verbosity: verbositySchema,
@@ -114,7 +114,7 @@ export function registerSpaceTools(
         "Get board metadata. Column IDs: kaiten_list_columns. "
         + "boardId from kaiten_list_boards.",
       inputSchema: {
-        boardId: z.number().int().describe(
+        boardId: z.coerce.number().int().describe(
           "Board ID",
         ),
         verbosity: verbositySchema,
@@ -145,7 +145,7 @@ export function registerSpaceTools(
         + "kaiten_create_card, kaiten_update_card. boardId "
         + "from kaiten_list_boards.",
       inputSchema: {
-        boardId: z.number().int().describe(
+        boardId: z.coerce.number().int().describe(
           "Board ID",
         ),
         verbosity: verbositySchema,
@@ -178,7 +178,7 @@ export function registerSpaceTools(
         + "kaiten_create_card and kaiten_update_card "
         + "when the board uses lanes.",
       inputSchema: {
-        boardId: z.number().int().describe(
+        boardId: z.coerce.number().int().describe(
           "Board ID",
         ),
         verbosity: verbositySchema,

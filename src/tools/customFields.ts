@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { get } from "../client.js";
 import {
@@ -25,9 +24,12 @@ function simplifyProperty(
     type: p.type,
   };
   if (v !== "min") {
-    result.required = p.required ?? false;
-    result.values = p.values ?? null;
-    result.card_type_ids = p.card_type_ids ?? null;
+    result.condition = p.condition;
+    result.show_on_facade = p.show_on_facade ?? false;
+    result.multiline = p.multiline ?? false;
+    result.multi_select = p.multi_select ?? false;
+    result.values_type = p.values_type ?? null;
+    result.fields_settings = p.fields_settings ?? null;
   }
   return result;
 }
@@ -40,10 +42,11 @@ export function registerCustomFieldTools(
     {
       title: "List Custom Properties",
       description:
-        "Custom field definitions for a space (types, "
-        + "allowed values). spaceId from kaiten_list_spaces.",
+        "List company-wide custom property definitions "
+        + "(custom fields). In Kaiten, custom properties "
+        + "are global per company/workspace, not per space. "
+        + "Endpoint: GET /company/custom-properties.",
       inputSchema: {
-        spaceId: z.number().int().describe("Space ID"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -53,14 +56,11 @@ export function registerCustomFieldTools(
         idempotentHint: true,
       },
     },
-    handleTool(async ({ spaceId, verbosity }) => {
+    handleTool(async ({ verbosity }) => {
       const v = asV(verbosity);
-      const key = `space_${spaceId}`;
       const props = await propsCache.getOrFetch(
-        key,
-        () => get<Obj[]>(
-          `/spaces/${spaceId}/card-properties`,
-        ),
+        "company:all",
+        () => get<Obj[]>("/company/custom-properties"),
       );
       return jsonResult(
         (props as Obj[]).map(

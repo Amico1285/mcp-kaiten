@@ -41,7 +41,7 @@ export function registerFileTools(
         "List card attachments. fileId for kaiten_delete_file; "
         + "cardId from kaiten_search_cards or kaiten_get_card.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -71,7 +71,7 @@ export function registerFileTools(
         + "kaiten_list_files. Prefer description links for "
         + "large files.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
         fileName: z.string().describe("File name"),
         contentBase64: z.string().describe(
           "File content as base64 string",
@@ -111,8 +111,8 @@ export function registerFileTools(
         "Remove an attachment. fileId and cardId come "
         + "from kaiten_list_files.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        fileId: z.number().int().describe("File ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
+        fileId: z.coerce.number().int().describe("File ID"),
       },
       annotations: {
         readOnlyHint: false,

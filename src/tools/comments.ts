@@ -23,7 +23,7 @@ export function registerCommentTools(
         + "kaiten_delete_comment; cardId from "
         + "kaiten_search_cards/kaiten_get_card.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -52,7 +52,7 @@ export function registerCommentTools(
         "Add HTML comment. cardId from kaiten_search_cards "
         + "or kaiten_get_card; list: kaiten_get_card_comments.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
         text: z.string().describe("HTML comment"),
         verbosity: verbositySchema,
       },
@@ -84,8 +84,8 @@ export function registerCommentTools(
         "Replace comment HTML. commentId from "
         + "kaiten_get_card_comments; cardId must match.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        commentId: z.number().int().describe(
+        cardId: z.coerce.number().int().describe("Card ID"),
+        commentId: z.coerce.number().int().describe(
           "Comment ID",
         ),
         text: z.string().describe("New HTML"),
@@ -120,8 +120,8 @@ export function registerCommentTools(
         "Delete comment. commentId and cardId from "
         + "kaiten_get_card_comments.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        commentId: z.number().int().describe(
+        cardId: z.coerce.number().int().describe("Card ID"),
+        commentId: z.coerce.number().int().describe(
           "Comment ID",
         ),
       },

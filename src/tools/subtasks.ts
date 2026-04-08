@@ -61,7 +61,7 @@ export function registerSubtaskTools(
         + "kaiten_attach_subtask; or kaiten_get_card "
         + "includeChildren.",
       inputSchema: {
-        cardId: z.number().int().describe(
+        cardId: z.coerce.number().int().describe(
           "Parent card ID",
         ),
         verbosity: verbositySchema,
@@ -90,10 +90,10 @@ export function registerSubtaskTools(
         "Link child to parent. Child via kaiten_create_card; "
         + "check kaiten_list_subtasks.",
       inputSchema: {
-        parentCardId: z.number().int().describe(
+        parentCardId: z.coerce.number().int().describe(
           "Parent card ID",
         ),
-        childCardId: z.number().int().describe(
+        childCardId: z.coerce.number().int().describe(
           "Child card ID",
         ),
       },
@@ -123,10 +123,10 @@ export function registerSubtaskTools(
         "Unlink child from parent; cards stay. Inverse of "
         + "kaiten_attach_subtask.",
       inputSchema: {
-        parentCardId: z.number().int().describe(
+        parentCardId: z.coerce.number().int().describe(
           "Parent card ID",
         ),
-        childCardId: z.number().int().describe(
+        childCardId: z.coerce.number().int().describe(
           "Child card ID",
         ),
       },

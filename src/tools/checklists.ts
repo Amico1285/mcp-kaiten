@@ -59,7 +59,7 @@ export function registerChecklistTools(
         + "with kaiten_add_checklist_item; read back "
         + "with kaiten_get_checklist.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
+        cardId: z.coerce.number().int().describe("Card ID"),
         name: z.string().min(1).describe(
           "Checklist name",
         ),
@@ -93,8 +93,8 @@ export function registerChecklistTools(
         + "kaiten_create_checklist or kaiten_get_card "
         + "(verbosity=max).",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        checklistId: z.number().int().describe(
+        cardId: z.coerce.number().int().describe("Card ID"),
+        checklistId: z.coerce.number().int().describe(
           "Checklist ID",
         ),
         verbosity: verbositySchema,
@@ -126,8 +126,8 @@ export function registerChecklistTools(
         + "checklistId from kaiten_get_checklist or "
         + "kaiten_get_card.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        checklistId: z.number().int().describe(
+        cardId: z.coerce.number().int().describe("Card ID"),
+        checklistId: z.coerce.number().int().describe(
           "Checklist ID",
         ),
       },
@@ -157,8 +157,8 @@ export function registerChecklistTools(
         + "kaiten_get_checklist; edit: "
         + "kaiten_update_checklist_item.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        checklistId: z.number().int().describe(
+        cardId: z.coerce.number().int().describe("Card ID"),
+        checklistId: z.coerce.number().int().describe(
           "Checklist ID",
         ),
         text: z.string().min(1).describe("Item text"),
@@ -194,11 +194,11 @@ export function registerChecklistTools(
         "Update checklist item text or checked flag. itemId "
         + "from kaiten_get_checklist.",
       inputSchema: {
-        cardId: z.number().int().describe("Card ID"),
-        checklistId: z.number().int().describe(
+        cardId: z.coerce.number().int().describe("Card ID"),
+        checklistId: z.coerce.number().int().describe(
           "Checklist ID",
         ),
-        itemId: z.number().int().describe("Item ID"),
+        itemId: z.coerce.number().int().describe("Item ID"),
         text: z.string().optional().describe(
           "New item text",
         ),
