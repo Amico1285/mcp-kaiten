@@ -6,6 +6,7 @@ import {
 } from "../utils/errors.js";
 import {
   type Obj, boolish, buildOptionalBody,
+  positiveId, requireSomeFields,
 } from "../utils/schemas.js";
 import {
   asV,
@@ -59,7 +60,10 @@ export function registerChecklistTools(
         + "with kaiten_add_checklist_item; read back "
         + "with kaiten_get_checklist.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
+        cardId: positiveId(
+          "Card ID (from kaiten_get_card or "
+          + "kaiten_search_cards)",
+        ),
         name: z.string().min(1).describe(
           "Checklist name",
         ),
@@ -89,14 +93,17 @@ export function registerChecklistTools(
     {
       title: "Get Checklist",
       description:
-        "Get checklist with items. checklistId from "
+        "Get a checklist with its items. NOTE: Kaiten "
+        + "resolves checklists by checklistId alone — "
+        + "passing a wrong cardId still returns the real "
+        + "checklist if checklistId is valid. Verify via "
+        + "the returned checklist's parent card if cardId "
+        + "is reconstructed from memory. checklistId from "
         + "kaiten_create_checklist or kaiten_get_card "
         + "(verbosity=max).",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
-        checklistId: z.coerce.number().int().describe(
-          "Checklist ID",
-        ),
+        cardId: positiveId("Card ID"),
+        checklistId: positiveId("Checklist ID"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -126,10 +133,8 @@ export function registerChecklistTools(
         + "checklistId from kaiten_get_checklist or "
         + "kaiten_get_card.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
-        checklistId: z.coerce.number().int().describe(
-          "Checklist ID",
-        ),
+        cardId: positiveId("Card ID"),
+        checklistId: positiveId("Checklist ID"),
       },
       annotations: {
         readOnlyHint: false,
@@ -153,14 +158,16 @@ export function registerChecklistTools(
     {
       title: "Add Checklist Item",
       description:
-        "Add item. checklistId from kaiten_create_checklist/"
-        + "kaiten_get_checklist; edit: "
+        "Add a checklist item. text has a 4096-character "
+        + "limit (Kaiten server-side cap). Item supports "
+        + "text and checked state only — `due_date` and "
+        + "`responsible_id` are not exposed by this fork. "
+        + "checklistId from kaiten_create_checklist or "
+        + "kaiten_get_checklist; edit with "
         + "kaiten_update_checklist_item.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
-        checklistId: z.coerce.number().int().describe(
-          "Checklist ID",
-        ),
+        cardId: positiveId("Card ID"),
+        checklistId: positiveId("Checklist ID"),
         text: z.string().min(1).describe("Item text"),
         verbosity: verbositySchema,
       },
@@ -191,14 +198,16 @@ export function registerChecklistTools(
     {
       title: "Update Checklist Item",
       description:
-        "Update checklist item text or checked flag. itemId "
-        + "from kaiten_get_checklist.",
+        "Update a checklist item's text or checked flag. "
+        + "text has a 4096-character limit (Kaiten "
+        + "server-side cap). Item supports text and "
+        + "checked state only — `due_date` and "
+        + "`responsible_id` are not exposed by this fork. "
+        + "itemId from kaiten_get_checklist.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
-        checklistId: z.coerce.number().int().describe(
-          "Checklist ID",
-        ),
-        itemId: z.coerce.number().int().describe("Item ID"),
+        cardId: positiveId("Card ID"),
+        checklistId: positiveId("Checklist ID"),
+        itemId: positiveId("Item ID"),
         text: z.string().optional().describe(
           "New item text",
         ),
@@ -211,7 +220,7 @@ export function registerChecklistTools(
         readOnlyHint: false,
         destructiveHint: false,
         openWorldHint: true,
-        idempotentHint: false,
+        idempotentHint: true,
       },
     },
     handleTool(async ({
@@ -223,6 +232,9 @@ export function registerChecklistTools(
         ["text", text],
         ["checked", checked],
       ]);
+      requireSomeFields(body, "kaiten_update_checklist_item", [
+        "text", "checked",
+      ]);
 
       const item = await patch<Obj>(
         `/cards/${cardId}/checklists`
@@ -232,6 +244,75 @@ export function registerChecklistTools(
       return jsonResult(
         simplifyChecklistItem(item, v),
       );
+    }),
+  );
+
+  server.registerTool(
+    "kaiten_delete_checklist_item",
+    {
+      title: "Delete Checklist Item",
+      description:
+        "Remove a single item from a checklist. cardId, "
+        + "checklistId, and itemId all from "
+        + "kaiten_get_checklist. NOTE: Kaiten resolves the "
+        + "item by itemId alone — wrong cardId/checklistId "
+        + "still deletes the real item. Verify the pair "
+        + "before deleting.",
+      inputSchema: {
+        cardId: positiveId("Card ID"),
+        checklistId: positiveId("Checklist ID"),
+        itemId: positiveId("Item ID"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: true,
+        idempotentHint: false,
+      },
+    },
+    handleTool(async ({ cardId, checklistId, itemId }) => {
+      await del(
+        `/cards/${cardId}/checklists/${checklistId}`
+          + `/items/${itemId}`,
+      );
+      return textResult(
+        `Checklist item ${itemId} deleted from checklist `
+        + `${checklistId} on card ${cardId}`,
+      );
+    }),
+  );
+
+  server.registerTool(
+    "kaiten_rename_checklist",
+    {
+      title: "Rename Checklist",
+      description:
+        "Rename a checklist. cardId and checklistId from "
+        + "kaiten_get_checklist. The only field supported "
+        + "is name; items are managed via the "
+        + "*_checklist_item tools.",
+      inputSchema: {
+        cardId: positiveId("Card ID"),
+        checklistId: positiveId("Checklist ID"),
+        name: z.string().min(1).describe("New checklist name"),
+        verbosity: verbositySchema,
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
+      },
+    },
+    handleTool(async ({
+      cardId, checklistId, name, verbosity,
+    }) => {
+      const v = asV(verbosity);
+      const updated = await patch<Obj>(
+        `/cards/${cardId}/checklists/${checklistId}`,
+        { name },
+      );
+      return jsonResult(simplifyChecklist(updated, v));
     }),
   );
 }

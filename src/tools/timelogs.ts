@@ -6,6 +6,8 @@ import {
 } from "../utils/errors.js";
 import {
   type Obj, buildOptionalBody,
+  positiveId, intId, isoDate, optionalIsoDate,
+  requireSomeFields,
 } from "../utils/schemas.js";
 import { usersCache } from "../utils/cache.js";
 import {
@@ -45,12 +47,15 @@ export function registerTimelogTools(
     {
       title: "List User Timelogs",
       description:
-        "User timelogs, from/to ISO. userId from "
-        + "kaiten_get_current_user; titles via kaiten_get_card.",
+        "List a user's timelogs across cards. Returns "
+        + "array; `time_spent` is in minutes. from/to in "
+        + "YYYY-MM-DD format. userId from "
+        + "kaiten_get_current_user or kaiten_list_users. "
+        + "Card titles via kaiten_get_card.",
       inputSchema: {
-        userId: z.coerce.number().int().describe("User ID"),
-        from: z.string().describe("ISO start"),
-        to: z.string().describe("ISO end"),
+        userId: positiveId("User ID"),
+        from: isoDate("Range start (YYYY-MM-DD)"),
+        to: isoDate("Range end (YYYY-MM-DD)"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -81,11 +86,15 @@ export function registerTimelogTools(
     {
       title: "List Card Timelogs",
       description:
-        "Card timelogs. logId for kaiten_update_timelog/"
-        + "kaiten_delete_timelog; cardId from "
-        + "kaiten_search_cards.",
+        "List a card's timelogs. Returns array; "
+        + "`time_spent` is in minutes. logId is used by "
+        + "kaiten_update_timelog / kaiten_delete_timelog; "
+        + "cardId from kaiten_search_cards. NOTE: returns "
+        + "[] for nonexistent cards as well as cards with "
+        + "no timelogs — verify cardId via "
+        + "kaiten_search_cards if you need to distinguish.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
+        cardId: positiveId("Card ID"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -112,19 +121,21 @@ export function registerTimelogTools(
     {
       title: "Create Timelog",
       description:
-        "Log time on card. roleId from kaiten_get_user_roles; "
-        + "cardId from kaiten_search_cards; see "
+        "Log time (in minutes) on a card. roleId from "
+        + "kaiten_list_company_roles; cardId from "
+        + "kaiten_search_cards; verify with "
         + "kaiten_get_card_timelogs.",
       inputSchema: {
-      cardId: z.coerce.number().int().describe("Card ID"),
+      cardId: positiveId("Card ID"),
       timeSpentMinutes: z.coerce.number().int().min(1)
         .describe("Minutes spent"),
-      roleId: z.coerce.number().int().describe("Role ID"),
+      roleId: intId("Role ID"),
       comment: z.string().optional().describe(
         "Log comment",
       ),
-      forDate: z.string().optional().describe(
-        "Log date (ISO 8601, e.g. 2026-03-21)",
+      forDate: optionalIsoDate(
+        "Date the work happened (YYYY-MM-DD). "
+        + "Defaults to today.",
       ),
       verbosity: verbositySchema,
       },
@@ -168,14 +179,13 @@ export function registerTimelogTools(
     {
       title: "Update Timelog",
       description:
-        "Patch timelog. logId and cardId from "
+        "Patch a timelog (timeSpentMinutes is in "
+        + "minutes). logId and cardId from "
         + "kaiten_get_card_timelogs or "
         + "kaiten_get_user_timelogs.",
       inputSchema: {
-      cardId: z.coerce.number().int().describe("Card ID"),
-      logId: z.coerce.number().int().describe(
-        "Time-log ID",
-      ),
+      cardId: positiveId("Card ID"),
+      logId: positiveId("Time-log ID"),
       timeSpentMinutes: z.coerce.number().int().min(1)
         .optional()
         .describe("New minutes"),
@@ -185,8 +195,8 @@ export function registerTimelogTools(
       comment: z.string().optional().describe(
         "New comment",
       ),
-      forDate: z.string().optional().describe(
-        "New date (ISO 8601, e.g. 2026-03-21)",
+      forDate: optionalIsoDate(
+        "Date the work happened (YYYY-MM-DD)",
       ),
       verbosity: verbositySchema,
       },
@@ -194,7 +204,7 @@ export function registerTimelogTools(
         readOnlyHint: false,
         destructiveHint: false,
         openWorldHint: true,
-        idempotentHint: false,
+        idempotentHint: true,
       },
     },
     handleTool(async ({
@@ -206,6 +216,9 @@ export function registerTimelogTools(
         ["role_id", fields.roleId],
         ["comment", fields.comment],
         ["for_date", fields.forDate],
+      ]);
+      requireSomeFields(body, "kaiten_update_timelog", [
+        "timeSpentMinutes", "comment", "forDate", "roleId",
       ]);
 
       const [currentUser, log] = await Promise.all([
@@ -227,14 +240,16 @@ export function registerTimelogTools(
     {
       title: "Delete Timelog",
       description:
-        "Delete timelog. cardId and logId from "
-        + "kaiten_get_card_timelogs or "
-        + "kaiten_get_user_timelogs.",
+        "Delete a timelog. WARNING: Kaiten ignores "
+        + "cardId in the URL path and resolves the log "
+        + "purely by logId — passing a wrong cardId will "
+        + "still delete the log from its real owner card. "
+        + "Always verify the pair via "
+        + "kaiten_get_card_timelogs(cardId) before "
+        + "deleting.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
-        logId: z.coerce.number().int().describe(
-          "Time-log ID",
-        ),
+        cardId: positiveId("Card ID"),
+        logId: positiveId("Time-log ID"),
       },
       annotations: {
         readOnlyHint: false,
