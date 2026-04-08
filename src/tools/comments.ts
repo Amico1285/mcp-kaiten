@@ -5,11 +5,24 @@ import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
 import type { Obj } from "../utils/schemas.js";
+import { usersCache } from "../utils/cache.js";
 import {
   simplifyComment, simplifyList,
+  enrichAuthor,
   verbositySchema,
   asV,
 } from "../utils/simplify.js";
+
+// Comment POST/PATCH endpoints return only `author_id` (per
+// docs/api/card-comments/{add,update}-comment.md). When the
+// caller is the comment author — the common case for
+// create/update — we substitute the cached current-user name
+// so verbosity≥normal doesn't show author_name:null.
+function fetchCurrentUser(): Promise<Obj> {
+  return usersCache.getOrFetch(
+    "current", () => get<Obj>("/users/current"),
+  );
+}
 
 export function registerCommentTools(
   server: McpServer,
@@ -67,11 +80,16 @@ export function registerCommentTools(
       cardId, text, verbosity,
     }) => {
       const v = asV(verbosity);
-      const comment = await post<Obj>(
-        `/cards/${cardId}/comments`, { text },
-      );
+      const [currentUser, comment] = await Promise.all([
+        fetchCurrentUser(),
+        post<Obj>(
+          `/cards/${cardId}/comments`, { text },
+        ),
+      ]);
       return jsonResult(
-        simplifyComment(comment, v),
+        simplifyComment(
+          enrichAuthor(comment, currentUser), v,
+        ),
       );
     }),
   );
@@ -102,12 +120,17 @@ export function registerCommentTools(
       cardId, commentId, text, verbosity,
     }) => {
       const v = asV(verbosity);
-      const comment = await patch<Obj>(
-        `/cards/${cardId}/comments/${commentId}`,
-        { text },
-      );
+      const [currentUser, comment] = await Promise.all([
+        fetchCurrentUser(),
+        patch<Obj>(
+          `/cards/${cardId}/comments/${commentId}`,
+          { text },
+        ),
+      ]);
       return jsonResult(
-        simplifyComment(comment, v),
+        simplifyComment(
+          enrichAuthor(comment, currentUser), v,
+        ),
       );
     }),
   );

@@ -5,7 +5,7 @@ import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
 import {
-  type Obj, buildOptionalBody,
+  type Obj, boolish, buildOptionalBody,
 } from "../utils/schemas.js";
 import {
   asV,
@@ -202,7 +202,7 @@ export function registerChecklistTools(
         text: z.string().optional().describe(
           "New item text",
         ),
-        checked: z.boolean().optional().describe(
+        checked: boolish.optional().describe(
           "Check/uncheck the item",
         ),
         verbosity: verbositySchema,

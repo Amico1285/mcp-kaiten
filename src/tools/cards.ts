@@ -7,6 +7,7 @@ import {
 import {
   type Obj, optionalInt, paginationSchema,
   conditionSchema, buildOptionalBody,
+  boolish, boolishWithDefault, removedField,
 } from "../utils/schemas.js";
 import {
   simplifyCard, simplifyList,
@@ -28,7 +29,7 @@ export function registerCardTools(
         + "kaiten_get_board_cards.",
       inputSchema: {
         cardId: z.coerce.number().int().describe("Card ID"),
-        includeChildren: z.boolean().default(false)
+        includeChildren: boolishWithDefault(false)
           .describe("Also fetch child cards"),
         verbosity: verbositySchema,
       },
@@ -90,16 +91,16 @@ export function registerCardTools(
         "Card state: draft|queued|in_progress|done",
       ),
       condition: conditionSchema,
-      asap: z.boolean().optional().describe(
+      asap: boolish.optional().describe(
         "Filter urgent cards",
       ),
-      archived: z.boolean().optional().describe(
+      archived: boolish.optional().describe(
         "Filter archived cards",
       ),
-      overdue: z.boolean().optional().describe(
+      overdue: boolish.optional().describe(
         "Filter overdue cards",
       ),
-      withDueDate: z.boolean().optional().describe(
+      withDueDate: boolish.optional().describe(
         "Filter cards with due date",
       ),
       createdBefore: z.string().optional().describe(
@@ -132,12 +133,12 @@ export function registerCardTools(
       typeIds: z.string().optional().describe(
         "Comma-separated card type IDs",
       ),
-      doneOnTime: z.boolean().optional().describe(
+      doneOnTime: boolish.optional().describe(
         "Filter by done on time",
       ),
-      excludeArchived: z.boolean().optional()
+      excludeArchived: boolish.optional()
         .describe("Exclude archived cards"),
-      excludeCompleted: z.boolean().optional()
+      excludeCompleted: boolish.optional()
         .describe("Exclude completed cards"),
       sortBy: z.enum(
         ["created", "updated", "title"],
@@ -278,7 +279,7 @@ export function registerCardTools(
           + "The numeric `size` field on a card is read-only "
           + "and computed from this text.",
         ),
-      asap: z.boolean().optional().describe(
+      asap: boolish.optional().describe(
         "Mark as urgent",
       ),
       ownerId: z.coerce.number().int().positive().optional()
@@ -355,7 +356,21 @@ export function registerCardTools(
           + "The numeric `size` field on a card is read-only "
           + "and computed from this text.",
         ),
-      asap: z.boolean().optional().describe(
+      // Legacy fields kept in the schema only so a friendly
+      // error fires when a caller still passes them. Handler
+      // never reads them.
+      size: removedField(
+        "'size' is read-only in Kaiten — pass `sizeText` "
+        + "(e.g. '5 SP') and the numeric `size` will be "
+        + "computed from it.",
+      ),
+      state: removedField(
+        "'state' is computed from column.type, not settable "
+        + "directly. To change it, move the card via "
+        + "`columnId` (column type 1=queued, 2=in_progress, "
+        + "3=done).",
+      ),
+      asap: boolish.optional().describe(
         "Mark as urgent",
       ),
       ownerId: z.coerce.number().int().positive().optional()
@@ -392,6 +407,20 @@ export function registerCardTools(
         ["owner_id", fields.ownerId],
         ["due_date", fields.dueDate],
       ]);
+
+      // Empty PATCH on /cards/{id} returns 403 from Kaiten —
+      // not actionable for the caller. Block it early with a
+      // hint that lists which fields actually do something.
+      if (Object.keys(body).length === 0) {
+        throw new Error(
+          "kaiten_update_card requires at least one field "
+          + "to update. Available fields: title, description, "
+          + "columnId, laneId, boardId, typeId, sizeText, "
+          + "asap, ownerId, dueDate. Note: 'size' is "
+          + "read-only (use sizeText), and 'state' is "
+          + "computed from column.type (move via columnId).",
+        );
+      }
 
       const card = await patch<Obj>(
         `/cards/${cardId}`, body,

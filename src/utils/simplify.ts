@@ -248,6 +248,34 @@ export function simplifyBoard(
   return dispatch(board, boardFns, v);
 }
 
+// ── Author enrichment (comments / timelogs) ───
+//
+// POST/PATCH endpoints for comments and timelogs return only
+// `author_id` — never the name and never a nested `author`
+// object. When the author is the API caller (which is the
+// common case for create/update), we substitute the cached
+// current-user `full_name` so downstream consumers don't see
+// `author_name: null` for things they just wrote themselves.
+function pickAuthorId(obj: Obj): unknown {
+  return nested(obj, "author")?.id
+    ?? obj.author_id
+    ?? obj.user_id;
+}
+
+function pickAuthorName(obj: Obj): unknown {
+  return nested(obj, "author")?.full_name
+    ?? obj.author_name;
+}
+
+export function enrichAuthor(
+  obj: Obj, currentUser?: Obj | null,
+): Obj {
+  if (!currentUser) return obj;
+  if (pickAuthorName(obj)) return obj;
+  if (pickAuthorId(obj) !== currentUser.id) return obj;
+  return { ...obj, author_name: currentUser.full_name };
+}
+
 // ── Comments ───────────────────────────────
 
 // Some comment endpoints (notably create_comment /

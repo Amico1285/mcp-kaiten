@@ -7,11 +7,35 @@ import {
 import {
   type Obj, buildOptionalBody,
 } from "../utils/schemas.js";
+import { usersCache } from "../utils/cache.js";
 import {
-  simplifyTimelog, simplifyList,
+  simplifyTimelog,
+  enrichAuthor,
   verbositySchema,
   asV,
+  type Verbosity,
 } from "../utils/simplify.js";
+
+// Time-log endpoints expose author/user only as integer IDs
+// (per docs/api/card-time-logs/add-time-log.md and a probe of
+// /users/{id}/time-logs). We resolve the name from the cached
+// current user when the author is the API caller.
+function fetchCurrentUser(): Promise<Obj> {
+  return usersCache.getOrFetch(
+    "current", () => get<Obj>("/users/current"),
+  );
+}
+
+function simplifyTimelogList(
+  logs: unknown,
+  v: Verbosity,
+  currentUser: Obj,
+): unknown {
+  if (!Array.isArray(logs)) return logs;
+  return (logs as Obj[]).map(
+    (l) => simplifyTimelog(enrichAuthor(l, currentUser), v),
+  );
+}
 
 export function registerTimelogTools(
   server: McpServer,
@@ -40,11 +64,14 @@ export function registerTimelogTools(
       userId, from, to, verbosity,
     }) => {
       const v = asV(verbosity);
-      const logs = await get(
-        `/users/${userId}/time-logs`, { from, to },
-      );
+      const [currentUser, logs] = await Promise.all([
+        fetchCurrentUser(),
+        get(
+          `/users/${userId}/time-logs`, { from, to },
+        ),
+      ]);
       return jsonResult(
-        simplifyList(logs, simplifyTimelog, v),
+        simplifyTimelogList(logs, v, currentUser),
       );
     }),
   );
@@ -70,11 +97,12 @@ export function registerTimelogTools(
     },
     handleTool(async ({ cardId, verbosity }) => {
       const v = asV(verbosity);
-      const logs = await get(
-        `/cards/${cardId}/time-logs`,
-      );
+      const [currentUser, logs] = await Promise.all([
+        fetchCurrentUser(),
+        get(`/cards/${cardId}/time-logs`),
+      ]);
       return jsonResult(
-        simplifyList(logs, simplifyTimelog, v),
+        simplifyTimelogList(logs, v, currentUser),
       );
     }),
   );
@@ -121,10 +149,17 @@ export function registerTimelogTools(
         ]),
       };
 
-      const log = await post<Obj>(
-        `/cards/${cardId}/time-logs`, body,
+      const [currentUser, log] = await Promise.all([
+        fetchCurrentUser(),
+        post<Obj>(
+          `/cards/${cardId}/time-logs`, body,
+        ),
+      ]);
+      return jsonResult(
+        simplifyTimelog(
+          enrichAuthor(log, currentUser), v,
+        ),
       );
-      return jsonResult(simplifyTimelog(log, v));
     }),
   );
 
@@ -173,10 +208,17 @@ export function registerTimelogTools(
         ["for_date", fields.forDate],
       ]);
 
-      const log = await patch<Obj>(
-        `/cards/${cardId}/time-logs/${logId}`, body,
+      const [currentUser, log] = await Promise.all([
+        fetchCurrentUser(),
+        patch<Obj>(
+          `/cards/${cardId}/time-logs/${logId}`, body,
+        ),
+      ]);
+      return jsonResult(
+        simplifyTimelog(
+          enrichAuthor(log, currentUser), v,
+        ),
       );
-      return jsonResult(simplifyTimelog(log, v));
     }),
   );
 
