@@ -6,6 +6,9 @@ import {
 } from "../utils/errors.js";
 import { positiveId, type Obj } from "../utils/schemas.js";
 import {
+  assertChildBelongsToParent,
+} from "../utils/preflight.js";
+import {
   asV,
   verbositySchema,
   type Verbosity,
@@ -202,6 +205,15 @@ export function registerFileTools(
       },
     },
     handleTool(async ({ cardId, fileId }) => {
+      await assertChildBelongsToParent({
+        toolName: "kaiten_delete_file",
+        childId: fileId,
+        childDescriptor: `file ${fileId}`,
+        parentDescriptor: `card ${cardId}`,
+        fetchPool: () => get<Obj[]>(
+          `/cards/${cardId}/files`,
+        ),
+      });
       await del(
         `/cards/${cardId}/files/${fileId}`,
       );

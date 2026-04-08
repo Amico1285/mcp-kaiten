@@ -8,6 +8,9 @@ import {
   type Obj, positiveId, buildOptionalBody,
   requireSomeFields,
 } from "../utils/schemas.js";
+import {
+  assertChildBelongsToParent,
+} from "../utils/preflight.js";
 import { usersCache } from "../utils/cache.js";
 import {
   simplifyComment, simplifyList,
@@ -149,6 +152,16 @@ export function registerCommentTools(
 
       requireSomeFields(body, "kaiten_update_comment", ["text"]);
 
+      await assertChildBelongsToParent({
+        toolName: "kaiten_update_comment",
+        childId: commentId,
+        childDescriptor: `comment ${commentId}`,
+        parentDescriptor: `card ${cardId}`,
+        fetchPool: () => get<Obj[]>(
+          `/cards/${cardId}/comments`,
+        ),
+      });
+
       const [currentUser, comment] = await Promise.all([
         fetchCurrentUser(),
         patch<Obj>(
@@ -188,6 +201,15 @@ export function registerCommentTools(
       },
     },
     handleTool(async ({ cardId, commentId }) => {
+      await assertChildBelongsToParent({
+        toolName: "kaiten_delete_comment",
+        childId: commentId,
+        childDescriptor: `comment ${commentId}`,
+        parentDescriptor: `card ${cardId}`,
+        fetchPool: () => get<Obj[]>(
+          `/cards/${cardId}/comments`,
+        ),
+      });
       await del(
         `/cards/${cardId}/comments/${commentId}`,
       );

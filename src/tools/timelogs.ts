@@ -9,6 +9,9 @@ import {
   positiveId, intId, isoDate, optionalIsoDate,
   requireSomeFields,
 } from "../utils/schemas.js";
+import {
+  assertChildBelongsToParent,
+} from "../utils/preflight.js";
 import { usersCache } from "../utils/cache.js";
 import {
   simplifyTimelog,
@@ -259,6 +262,15 @@ export function registerTimelogTools(
       },
     },
     handleTool(async ({ cardId, logId }) => {
+      await assertChildBelongsToParent({
+        toolName: "kaiten_delete_timelog",
+        childId: logId,
+        childDescriptor: `timelog ${logId}`,
+        parentDescriptor: `card ${cardId}`,
+        fetchPool: () => get<Obj[]>(
+          `/cards/${cardId}/time-logs`,
+        ),
+      });
       await del(
         `/cards/${cardId}/time-logs/${logId}`,
       );

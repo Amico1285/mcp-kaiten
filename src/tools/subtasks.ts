@@ -3,7 +3,10 @@ import { get, post, del } from "../client.js";
 import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
-import { positiveId } from "../utils/schemas.js";
+import { positiveId, type Obj } from "../utils/schemas.js";
+import {
+  assertChildBelongsToParent,
+} from "../utils/preflight.js";
 import {
   asV,
   simplifyCard, simplifyList,
@@ -144,6 +147,15 @@ export function registerSubtaskTools(
     handleTool(async ({
       parentCardId, childCardId,
     }) => {
+      await assertChildBelongsToParent({
+        toolName: "kaiten_detach_subtask",
+        childId: childCardId,
+        childDescriptor: `card ${childCardId}`,
+        parentDescriptor: `parent card ${parentCardId}`,
+        fetchPool: () => get<Obj[]>(
+          `/cards/${parentCardId}/children`,
+        ),
+      });
       await detachSubtask(parentCardId, childCardId);
       return textResult(
         `Card ${childCardId} detached from `

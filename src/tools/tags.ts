@@ -11,6 +11,9 @@ import {
   type Obj,
 } from "../utils/schemas.js";
 import {
+  assertChildBelongsToParent,
+} from "../utils/preflight.js";
+import {
   asV,
   verbositySchema,
   type Verbosity,
@@ -123,6 +126,15 @@ export function registerTagTools(
       },
     },
     handleTool(async ({ cardId, tagId }) => {
+      await assertChildBelongsToParent({
+        toolName: "kaiten_remove_tag",
+        childId: tagId,
+        childDescriptor: `tag ${tagId}`,
+        parentDescriptor: `card ${cardId}`,
+        fetchPool: () => get<Obj[]>(
+          `/cards/${cardId}/tags`,
+        ),
+      });
       await del(
         `/cards/${cardId}/tags/${tagId}`,
       );

@@ -9,10 +9,29 @@ import {
   positiveId, requireSomeFields,
 } from "../utils/schemas.js";
 import {
+  assertChildBelongsToParent,
+} from "../utils/preflight.js";
+import {
   asV,
   verbositySchema,
   type Verbosity,
 } from "../utils/simplify.js";
+
+// Checklists have no card-scoped LIST endpoint
+// (`GET /cards/{cardId}/checklists` is 405) and the single-
+// checklist GET silently returns cross-card (that's CC-1 itself).
+// The only source-of-truth is the bare `GET /cards/{cardId}`,
+// which returns checklists inline with `card_id` per checklist
+// and `items` arrays per checklist. We fetch it once and reuse
+// for both the checklist-level and the item-level check.
+async function fetchCardChecklists(
+  cardId: number,
+): Promise<Obj[]> {
+  const card = await get<Obj>(`/cards/${cardId}`);
+  return Array.isArray(card.checklists)
+    ? (card.checklists as Obj[])
+    : [];
+}
 
 export function simplifyChecklistItem(
   item: Obj,
@@ -136,9 +155,18 @@ export function registerChecklistTools(
       cardId, checklistId, verbosity,
     }) => {
       const v = asV(verbosity);
-      const cl = await get<Obj>(
-        `/cards/${cardId}/checklists/${checklistId}`,
-      );
+      // Preflight: the raw `/cards/{cardId}/checklists/{id}`
+      // endpoint silently returns cross-card, so we verify
+      // via the bare card (authoritative). The matched object
+      // already contains items, so we return it directly —
+      // no duplicate fetch.
+      const cl = await assertChildBelongsToParent({
+        toolName: "kaiten_get_checklist",
+        childId: checklistId,
+        childDescriptor: `checklist ${checklistId}`,
+        parentDescriptor: `card ${cardId}`,
+        fetchPool: () => fetchCardChecklists(cardId),
+      });
       return jsonResult(simplifyChecklist(cl, v));
     }),
   );
@@ -255,6 +283,26 @@ export function registerChecklistTools(
         "text", "checked",
       ]);
 
+      // Two-level preflight in a single round-trip: the matched
+      // checklist from the card also carries the `items` array,
+      // so we reuse it to verify itemId membership.
+      const cl = await assertChildBelongsToParent({
+        toolName: "kaiten_update_checklist_item",
+        childId: checklistId,
+        childDescriptor: `checklist ${checklistId}`,
+        parentDescriptor: `card ${cardId}`,
+        fetchPool: () => fetchCardChecklists(cardId),
+      });
+      await assertChildBelongsToParent({
+        toolName: "kaiten_update_checklist_item",
+        childId: itemId,
+        childDescriptor: `checklist item ${itemId}`,
+        parentDescriptor: `checklist ${checklistId}`,
+        fetchPool: async () => Array.isArray(cl.items)
+          ? (cl.items as Obj[])
+          : [],
+      });
+
       const item = await patch<Obj>(
         `/cards/${cardId}/checklists`
           + `/${checklistId}/items/${itemId}`,
@@ -290,6 +338,22 @@ export function registerChecklistTools(
       },
     },
     handleTool(async ({ cardId, checklistId, itemId }) => {
+      const cl = await assertChildBelongsToParent({
+        toolName: "kaiten_delete_checklist_item",
+        childId: checklistId,
+        childDescriptor: `checklist ${checklistId}`,
+        parentDescriptor: `card ${cardId}`,
+        fetchPool: () => fetchCardChecklists(cardId),
+      });
+      await assertChildBelongsToParent({
+        toolName: "kaiten_delete_checklist_item",
+        childId: itemId,
+        childDescriptor: `checklist item ${itemId}`,
+        parentDescriptor: `checklist ${checklistId}`,
+        fetchPool: async () => Array.isArray(cl.items)
+          ? (cl.items as Obj[])
+          : [],
+      });
       await del(
         `/cards/${cardId}/checklists/${checklistId}`
           + `/items/${itemId}`,
