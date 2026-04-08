@@ -1,9 +1,9 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { get, post, del } from "../client.js";
 import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
+import { positiveId } from "../utils/schemas.js";
 import {
   asV,
   simplifyCard, simplifyList,
@@ -57,13 +57,14 @@ export function registerSubtaskTools(
     {
       title: "List Subtasks",
       description:
-        "Linked child cards. Add: kaiten_create_card + "
-        + "kaiten_attach_subtask; or kaiten_get_card "
-        + "includeChildren.",
+        "List child cards linked to a parent card. `cardId` "
+        + "is the PARENT card; the tool returns its CHILD "
+        + "cards. Add new children: kaiten_create_card + "
+        + "kaiten_attach_subtask. An alternative is "
+        + "kaiten_get_card(cardId, includeChildren=true), "
+        + "which embeds the children inline.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe(
-          "Parent card ID",
-        ),
+        cardId: positiveId("Parent card ID"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -87,21 +88,24 @@ export function registerSubtaskTools(
     {
       title: "Attach Subtask",
       description:
-        "Link child to parent. Child via kaiten_create_card; "
-        + "check kaiten_list_subtasks.",
+        "Link an existing child card to a parent card. "
+        + "Subtask = a real Kaiten card linked as a child "
+        + "(NOT a checklist item — for to-do items use "
+        + "kaiten_add_checklist_item). Child via "
+        + "kaiten_create_card; verify via kaiten_list_subtasks. "
+        + "Idempotent — re-attaching the same pair returns "
+        + "success without creating a duplicate link. Cycles "
+        + "(A→B and B→A) and cross-board attaches are accepted "
+        + "by Kaiten without warning.",
       inputSchema: {
-        parentCardId: z.coerce.number().int().describe(
-          "Parent card ID",
-        ),
-        childCardId: z.coerce.number().int().describe(
-          "Child card ID",
-        ),
+        parentCardId: positiveId("Parent card ID"),
+        childCardId: positiveId("Child card ID"),
       },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
         openWorldHint: true,
-        idempotentHint: false,
+        idempotentHint: true,
       },
     },
     handleTool(async ({
@@ -121,20 +125,20 @@ export function registerSubtaskTools(
       title: "Detach Subtask",
       description:
         "Unlink child from parent; cards stay. Inverse of "
-        + "kaiten_attach_subtask.",
+        + "kaiten_attach_subtask. WARNING: Detaching a "
+        + "non-existent or wrong-pair link returns success "
+        + "silently. Verify the link exists via "
+        + "kaiten_list_subtasks(parentCardId) before relying "
+        + "on the success message.",
       inputSchema: {
-        parentCardId: z.coerce.number().int().describe(
-          "Parent card ID",
-        ),
-        childCardId: z.coerce.number().int().describe(
-          "Child card ID",
-        ),
+        parentCardId: positiveId("Parent card ID"),
+        childCardId: positiveId("Child card ID"),
       },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
         openWorldHint: true,
-        idempotentHint: false,
+        idempotentHint: true,
       },
     },
     handleTool(async ({

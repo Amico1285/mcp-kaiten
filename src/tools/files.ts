@@ -4,7 +4,7 @@ import { get, uploadFile, del } from "../client.js";
 import {
   jsonResult, textResult, handleTool,
 } from "../utils/errors.js";
-import type { Obj } from "../utils/schemas.js";
+import { positiveId, type Obj } from "../utils/schemas.js";
 import {
   asV,
   verbositySchema,
@@ -104,9 +104,13 @@ export function registerFileTools(
       title: "List Files",
       description:
         "List card attachments. fileId for kaiten_delete_file; "
-        + "cardId from kaiten_search_cards or kaiten_get_card.",
+        + "cardId from kaiten_search_cards or kaiten_get_card. "
+        + "NOTE: `mime_type` is inferred from filename extension "
+        + "client-side because Kaiten does not persist the "
+        + "multipart Content-Type header. Unknown extensions "
+        + "return `mime_type: null`.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
+        cardId: positiveId("Card ID"),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -136,16 +140,23 @@ export function registerFileTools(
         + "kaiten_list_files. Prefer description links for "
         + "large files. Note: Kaiten does not persist the "
         + "multipart Content-Type — `mime_type` in responses "
-        + "is inferred from the file extension.",
+        + "is inferred from the file extension. "
+        + "`contentBase64` is decoded leniently — empty strings "
+        + "and garbage produce 0-byte uploads silently. "
+        + "Validate before calling.",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
-        fileName: z.string().describe("File name"),
-        contentBase64: z.string().describe(
-          "File content as base64 string",
+        cardId: positiveId("Card ID"),
+        fileName: z.string().min(1).describe("File name"),
+        contentBase64: z.string().min(1).describe(
+          "File content as base64 string (non-empty)",
         ),
         contentType: z.string().default(
           "application/octet-stream",
-        ).describe("MIME type"),
+        ).describe(
+          "MIME type (NOTE: ignored by Kaiten — kept for "
+          + "client compatibility. mime_type in responses is "
+          + "inferred from filename extension)",
+        ),
         verbosity: verbositySchema,
       },
       annotations: {
@@ -176,16 +187,18 @@ export function registerFileTools(
       title: "Delete File",
       description:
         "Remove an attachment. fileId and cardId come "
-        + "from kaiten_list_files.",
+        + "from kaiten_list_files. Re-delete of an already-"
+        + "deleted file returns success silently (Kaiten side "
+        + "is idempotent).",
       inputSchema: {
-        cardId: z.coerce.number().int().describe("Card ID"),
-        fileId: z.coerce.number().int().describe("File ID"),
+        cardId: positiveId("Card ID"),
+        fileId: positiveId("File ID"),
       },
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
         openWorldHint: true,
-        idempotentHint: false,
+        idempotentHint: true,
       },
     },
     handleTool(async ({ cardId, fileId }) => {
