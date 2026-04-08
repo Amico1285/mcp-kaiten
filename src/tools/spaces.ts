@@ -8,6 +8,7 @@ import {
 import {
   simplifySpace, simplifyBoard,
   simplifyColumn, simplifyLane,
+  simplifyCardType,
   simplifyUser, simplifyList,
   verbositySchema,
   asV,
@@ -170,8 +171,15 @@ export function registerSpaceTools(
         `board:${boardId}:columns`,
         () => get(`/boards/${boardId}/columns`),
       );
+      // Pass boardId down so verbosity=max surfaces the
+      // owning board_id cross-ref on each column (the raw
+      // /boards/{id}/columns response doesn't carry it).
       return jsonResult(
-        simplifyList(columns, simplifyColumn, v),
+        simplifyList(
+          columns,
+          (c, cv) => simplifyColumn(c, cv, boardId),
+          v,
+        ),
       );
     }),
   );
@@ -235,13 +243,8 @@ export function registerSpaceTools(
         "global:card-types",
         () => get<Obj[]>("/card-types"),
       );
-      if (v === "raw") return jsonResult(types);
       return jsonResult(
-        types.map((t) => ({
-          id: t.id,
-          name: t.name,
-          color: t.color,
-        })),
+        simplifyList(types, simplifyCardType, v),
       );
     }),
   );

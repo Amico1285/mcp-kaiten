@@ -16,8 +16,27 @@ import {
 
 export function simplifyChecklistItem(
   item: Obj,
-  _v: Verbosity,
+  v: Verbosity,
 ): Obj {
+  if (v === "raw") return item;
+  // max exposes audit-trail fields (who checked it and when,
+  // who's responsible, when it's due) plus the external uid.
+  // min/normal keep the historical 4-field shape unchanged.
+  if (v === "max") {
+    return {
+      id: item.id,
+      uid: item.uid ?? null,
+      text: item.text,
+      checked: item.checked ?? false,
+      sort_order: item.sort_order,
+      due_date: item.due_date ?? null,
+      responsible_id: item.responsible_id ?? null,
+      checker_id: item.checker_id ?? null,
+      checked_at: item.checked_at ?? null,
+      created: item.created ?? null,
+      updated: item.updated ?? null,
+    };
+  }
   return {
     id: item.id,
     text: item.text,

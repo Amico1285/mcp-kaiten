@@ -130,6 +130,31 @@ const userFns: SimplifyFns = {
     username: u.username,
     activated: u.activated,
   }),
+  // verbosity=max exposes persistable user profile fields that
+  // an LLM may legitimately want (lang/timezone for scheduling
+  // hints, default_space_id for drill-down, avatar URLs for
+  // UI surfaces). Deliberately excludes the giant base64
+  // `avatar_uploaded_default_url` blob present in raw — use
+  // verbosity=raw if you actually need that payload.
+  max: (u) => ({
+    id: u.id,
+    uid: u.uid ?? null,
+    full_name: u.full_name,
+    email: u.email,
+    username: u.username,
+    activated: u.activated,
+    virtual: u.virtual ?? false,
+    lang: u.lang ?? null,
+    timezone: u.timezone ?? null,
+    theme: u.theme ?? null,
+    company_id: u.company_id ?? null,
+    default_space_id: u.default_space_id ?? null,
+    avatar_type: u.avatar_type ?? null,
+    avatar_url: u.avatar_url ?? null,
+    avatar_initials_url: u.avatar_initials_url ?? null,
+    created: u.created ?? null,
+    updated: u.updated ?? null,
+  }),
 };
 
 export function simplifyUser(
@@ -186,12 +211,17 @@ const spaceFns: SimplifyFns = {
   // metadata (settings, hidden card type uids, paths, …).
   // verbosity=max should expose all of it; the actual list
   // of boards is fetched separately via kaiten_list_boards.
+  // Intentionally a strict superset of normal; raw remains
+  // the only passthrough with unlisted debug/back-office
+  // fields the LLM doesn't usually need.
   max: (s) => ({
     id: s.id,
     uid: s.uid ?? null,
     title: s.title,
+    key: s.key ?? null,
     archived: s.archived ?? false,
     access: s.access ?? null,
+    "protected": s["protected"] ?? false,
     for_everyone_access_role_id:
       s.for_everyone_access_role_id ?? null,
     entity_type: s.entity_type ?? null,
@@ -199,11 +229,18 @@ const spaceFns: SimplifyFns = {
     sort_order: s.sort_order ?? null,
     parent_entity_uid: s.parent_entity_uid ?? null,
     company_id: s.company_id ?? null,
+    users_count: s.users_count ?? null,
     allowed_card_type_ids:
       s.allowed_card_type_ids ?? null,
     hidden_card_type_uids:
       s.hidden_card_type_uids ?? null,
+    icon_type: s.icon_type ?? null,
+    icon_value: s.icon_value ?? null,
+    icon_color: s.icon_color ?? null,
     external_id: s.external_id ?? null,
+    import_uid: s.import_uid ?? null,
+    author_uid: s.author_uid ?? null,
+    work_calendar_id: s.work_calendar_id ?? null,
     settings: s.settings ?? null,
     created: s.created ?? null,
     updated: s.updated ?? null,
@@ -377,6 +414,48 @@ const timelogFns: SimplifyFns = {
       ?? l.author_name
       ?? null,
   }),
+  // verbosity=max surfaces everything useful for an audit
+  // trail without the avatar bloat: who logged it (author),
+  // which company role was booked against (role_id/role_name),
+  // who later touched it (updater_id), and the external uid
+  // for cross-ref. enrichAuthor is still applied BEFORE this
+  // simplifier runs at the call site — we only read the shape
+  // it leaves behind.
+  max: (l) => ({
+    id: l.id,
+    uid: l.uid ?? null,
+    card_id: l.card_id,
+    time_spent: l.time_spent,
+    comment: l.comment ?? null,
+    for_date: l.for_date,
+    created: l.created,
+    updated: l.updated,
+    author_id:
+      nested(l, "author")?.id
+      ?? l.author_id
+      ?? l.user_id
+      ?? null,
+    author_name:
+      nested(l, "author")?.full_name
+      ?? l.author_name
+      ?? null,
+    user_id:
+      nested(l, "user")?.id
+      ?? l.user_id
+      ?? null,
+    updater_id:
+      nested(l, "updater")?.id
+      ?? l.updater_id
+      ?? null,
+    role_id:
+      nested(l, "role")?.id
+      ?? l.role_id
+      ?? null,
+    role_name:
+      nested(l, "role")?.name
+      ?? l.role_name
+      ?? null,
+  }),
 };
 
 export function simplifyTimelog(
@@ -386,31 +465,145 @@ export function simplifyTimelog(
 }
 
 // ── Columns ────────────────────────────────
+//
+// min/normal retain the historical 4-field shape so existing
+// consumers see zero diff. max exposes the WIP/archive/rules
+// metadata that lives on the raw column, plus a `board_id`
+// cross-ref: the raw /boards/{id}/columns response does not
+// carry board_id on each column (it's implicit in the URL),
+// so callers can pass the owning board id explicitly via the
+// optional 3rd arg (see spaces.ts list_columns handler).
+const columnFns: SimplifyFns = {
+  min: (c) => ({
+    id: c.id,
+    title: c.title,
+    sort_order: c.sort_order,
+    col_type: c.type ?? c.col_type,
+  }),
+  normal: (c) => ({
+    id: c.id,
+    title: c.title,
+    sort_order: c.sort_order,
+    col_type: c.type ?? c.col_type,
+  }),
+  max: (c) => ({
+    id: c.id,
+    uid: c.uid ?? null,
+    title: c.title,
+    sort_order: c.sort_order,
+    col_type: c.type ?? c.col_type,
+    condition: c.condition ?? null,
+    color: c.color ?? null,
+    wip_limit: c.wip_limit ?? null,
+    archive_after_days: c.archive_after_days ?? null,
+    rules: c.rules ?? null,
+    board_id: c.board_id ?? null,
+    created: c.created ?? null,
+    updated: c.updated ?? null,
+  }),
+};
 
 export function simplifyColumn(
-  col: Obj, v: Verbosity = "min",
+  col: Obj, v: Verbosity = "min", boardId?: number,
 ): Obj {
-  if (v === "raw") return col;
-  return {
-    id: col.id,
-    title: col.title,
-    sort_order: col.sort_order,
-    col_type: col.type ?? col.col_type,
-  };
+  const out = dispatch(col, columnFns, v);
+  // Only override board_id at max. min/normal intentionally
+  // omit the field, and raw must be passed through untouched.
+  if (
+    v === "max"
+    && boardId !== undefined
+    && out
+    && typeof out === "object"
+  ) {
+    (out as Obj).board_id = boardId;
+  }
+  return out;
 }
 
 // ── Lanes ──────────────────────────────────
+//
+// min/normal retain the historical 4-field shape. max adds
+// the `default` flag (important: the "unnamed" default lane
+// is identified by this flag, not an empty title — see
+// list_lanes description), cell_wip_limits, external_id,
+// uid and timestamps.
+const laneFns: SimplifyFns = {
+  min: (l) => ({
+    id: l.id,
+    title: l.title,
+    sort_order: l.sort_order,
+    condition: l.condition,
+  }),
+  normal: (l) => ({
+    id: l.id,
+    title: l.title,
+    sort_order: l.sort_order,
+    condition: l.condition,
+  }),
+  max: (l) => ({
+    id: l.id,
+    uid: l.uid ?? null,
+    title: l.title,
+    sort_order: l.sort_order,
+    condition: l.condition,
+    default: l.default ?? false,
+    external_id: l.external_id ?? null,
+    cell_wip_limits: l.cell_wip_limits ?? null,
+    created: l.created ?? null,
+    updated: l.updated ?? null,
+  }),
+};
 
 export function simplifyLane(
   lane: Obj, v: Verbosity = "min",
 ): Obj {
-  if (v === "raw") return lane;
-  return {
-    id: lane.id,
-    title: lane.title,
-    sort_order: lane.sort_order,
-    condition: lane.condition,
-  };
+  return dispatch(lane, laneFns, v);
+}
+
+// ── Card types ─────────────────────────────
+//
+// /card-types is a global-per-company endpoint; the types
+// Bug/Feature/Story etc. are shared across every board. min
+// is intentionally terse ({id, name}) because that's the
+// historical shape list_card_types emitted inline before
+// this dispatch existed. normal adds the display attributes
+// an LLM needs to pick one type; max surfaces the full type
+// definition including card_properties / suggest_fields.
+const cardTypeFns: SimplifyFns = {
+  min: (t) => ({
+    id: t.id,
+    name: t.name,
+  }),
+  normal: (t) => ({
+    id: t.id,
+    name: t.name,
+    color: t.color ?? null,
+    letter: t.letter ?? null,
+    archived: t.archived ?? false,
+  }),
+  max: (t) => ({
+    id: t.id,
+    uid: t.uid ?? null,
+    name: t.name,
+    color: t.color ?? null,
+    letter: t.letter ?? null,
+    archived: t.archived ?? false,
+    locked: t.locked ?? false,
+    properties: t.properties ?? null,
+    card_properties: t.card_properties ?? null,
+    suggest_fields: t.suggest_fields ?? null,
+    description_template: t.description_template ?? null,
+    company_id: t.company_id ?? null,
+    author: t.author ?? null,
+    created: t.created ?? null,
+    updated: t.updated ?? null,
+  }),
+};
+
+export function simplifyCardType(
+  cardType: Obj, v: Verbosity = "min",
+): Obj {
+  return dispatch(cardType, cardTypeFns, v);
 }
 
 // ── Generic list helper ────────────────────
