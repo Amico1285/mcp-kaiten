@@ -4,7 +4,7 @@ import { jsonResult, handleTool } from "../utils/errors.js";
 import type { Obj } from "../utils/schemas.js";
 import { usersCache, rolesCache } from "../utils/cache.js";
 import {
-  simplifyUser, simplifyList,
+  simplifyUser, simplifyRole, simplifyList,
   verbositySchema,
   asV,
 } from "../utils/simplify.js";
@@ -18,8 +18,12 @@ export function registerUserTools(
       title: "Get Current User",
       description:
         "Current user (id, name, email). id for "
-        + "kaiten_get_user_timelogs and kaiten_search_cards "
-        + "ownerId.",
+        + "kaiten_get_user_timelogs and "
+        + "kaiten_search_cards.ownerId. Calling this also "
+        + "warms an internal cache used by enrichAuthor for "
+        + "comments and timelogs — so author_name is "
+        + "populated on create_comment / create_timelog "
+        + "responses instead of coming back null.",
       inputSchema: { verbosity: verbositySchema },
       annotations: {
         readOnlyHint: true,
@@ -43,8 +47,13 @@ export function registerUserTools(
     {
       title: "List Users",
       description:
-        "Org users. IDs for kaiten_search_cards filters and "
-        + "kaiten_create_card ownerId.",
+        "Returns the full company user list — no pagination "
+        + "and no server-side filtering, suitable for small "
+        + "workspaces only. IDs feed kaiten_search_cards "
+        + "filters, kaiten_create_card.ownerId and "
+        + "kaiten_update_card.ownerId. If /users is denied "
+        + "on the current token, fall back to "
+        + "kaiten_get_current_user as a single-user source.",
       inputSchema: { verbosity: verbositySchema },
       annotations: {
         readOnlyHint: true,
@@ -65,12 +74,17 @@ export function registerUserTools(
   );
 
   server.registerTool(
-    "kaiten_get_user_roles",
+    "kaiten_list_company_roles",
     {
-      title: "Get User Roles",
+      title: "List Company Roles",
       description:
-        "Current user roles per space. roleId for "
-        + "kaiten_create_timelog.",
+        "Global role definitions for the company. "
+        + "id → kaiten_create_timelog.roleId. NOTE: the "
+        + "system 'Employee' role has id -1, which is valid "
+        + "for kaiten_create_timelog but would fail "
+        + ".positive() validation — that's why roleId on "
+        + "create_timelog/update_timelog is not "
+        + "strict-positive.",
       inputSchema: { verbosity: verbositySchema },
       annotations: {
         readOnlyHint: true,
@@ -82,19 +96,9 @@ export function registerUserTools(
     handleTool(async ({ verbosity }) => {
       const v = asV(verbosity);
       const roles = await rolesCache.getOrFetch(
-        "roles", () => get("/user-roles"),
+        "roles", () => get<Obj[]>("/user-roles"),
       );
-      if (v === "raw") return jsonResult(roles);
-      if (!Array.isArray(roles)) {
-        return jsonResult(roles);
-      }
-      return jsonResult(
-        (roles as Obj[]).map((r) => ({
-          id: r.id,
-          name: r.name,
-          space_id: r.space_id,
-        })),
-      );
+      return jsonResult(simplifyList(roles, simplifyRole, v));
     }),
   );
 }

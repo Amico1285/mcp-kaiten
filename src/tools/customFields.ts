@@ -45,7 +45,13 @@ export function registerCustomFieldTools(
         "List company-wide custom property definitions "
         + "(custom fields). In Kaiten, custom properties "
         + "are global per company/workspace, not per space. "
-        + "Endpoint: GET /company/custom-properties.",
+        + "The `type` field on each property determines the "
+        + "value shape when writing via "
+        + "kaiten_update_card.properties: "
+        + "string | number | date | select id | "
+        + "multi_select ids[] | user id | catalog uid | "
+        + "tree uid | etc. Endpoint: "
+        + "GET /company/custom-properties.",
       inputSchema: {
         verbosity: verbositySchema,
       },

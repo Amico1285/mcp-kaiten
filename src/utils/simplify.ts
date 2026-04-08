@@ -138,6 +138,35 @@ export function simplifyUser(
   return dispatch(user, userFns, v);
 }
 
+// ── Roles ──────────────────────────────────
+//
+// /user-roles returns global company role definitions —
+// NOT per-space, NOT per-user. The previous inline mapper
+// in users.ts read a phantom `r.space_id` that never exists
+// in the response. Factored out here so that both `min` and
+// `normal` emit real fields only (CC-11).
+
+const roleFns: SimplifyFns = {
+  min: (r) => ({
+    id: r.id,
+    name: r.name,
+  }),
+  normal: (r) => ({
+    id: r.id,
+    name: r.name,
+    uid: r.uid ?? null,
+    company_id: r.company_id ?? null,
+    created: r.created ?? null,
+    updated: r.updated ?? null,
+  }),
+};
+
+export function simplifyRole(
+  role: Obj, v: Verbosity = "min",
+): Obj {
+  return dispatch(role, roleFns, v);
+}
+
 // ── Spaces ─────────────────────────────────
 
 const spaceFns: SimplifyFns = {
