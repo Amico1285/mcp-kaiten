@@ -19,6 +19,8 @@ import { registerTagTools } from "./tools/tags.js";
 import { registerChecklistTools } from "./tools/checklists.js";
 import { registerFileTools } from "./tools/files.js";
 import { registerCustomFieldTools } from "./tools/customFields.js";
+import { registerMemberTools } from "./tools/members.js";
+import { registerBlockerTools } from "./tools/blockers.js";
 import { registerResources, registerPrompts } from "./resources.js";
 
 const server = new McpServer(
@@ -46,6 +48,8 @@ registerTagTools(server);
 registerChecklistTools(server);
 registerFileTools(server);
 registerCustomFieldTools(server);
+registerMemberTools(server);
+registerBlockerTools(server);
 registerResources(server);
 registerPrompts(server);
 
