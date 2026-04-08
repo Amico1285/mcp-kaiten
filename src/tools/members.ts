@@ -178,7 +178,18 @@ export function registerMemberTools(
     },
     handleTool(async ({ cardId, userId, verbosity }) => {
       const v = asV(verbosity);
-      await assertChildBelongsToParent({
+      // The preflight fetches GET /cards/{id}/members which
+      // returns the FULL user shape (id, full_name, email,
+      // username, avatar_*, lng, timezone, theme, activated,
+      // created, updated, card_id, user_id, type). The PATCH
+      // response, by contrast, is a skeleton
+      // {created, updated, card_id, user_id, type} with no
+      // user profile fields — running simplifyUser on it
+      // would yield mostly `undefined`. So we reuse the
+      // preflight's match as the response source and override
+      // type:2 locally (we know it's 2 because the PATCH
+      // below just succeeded).
+      const match = await assertChildBelongsToParent({
         toolName: "kaiten_set_card_responsible",
         childId: userId,
         childDescriptor: `user ${userId}`,
@@ -187,14 +198,16 @@ export function registerMemberTools(
           `/cards/${cardId}/members`,
         ),
       });
-      const updated = await patch<Obj>(
+      await patch(
         `/cards/${cardId}/members/${userId}`,
         { type: 2 },
       );
-      if (v === "raw") return jsonResult(updated);
+      if (v === "raw") {
+        return jsonResult({ ...match, type: 2 });
+      }
       return jsonResult({
-        ...simplifyUser(updated, v),
-        type: updated.type,
+        ...simplifyUser(match, v),
+        type: 2,
       });
     }),
   );
